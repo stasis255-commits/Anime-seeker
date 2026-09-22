@@ -1,0 +1,44 @@
+{
+  "name": "anime-seeker",
+  "version": "1.0.0",
+  "description": "Anime Seeker - 音響指紋によるアニメOP/ED自動認識・映像同期VJツール",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "test": "node test_sqlite_pipeline.js && node test_ndjson_roundtrip.js"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.0"
+  },
+  "build": {
+    "appId": "com.stasis255.animeseeker",
+    "productName": "Anime Seeker",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "db.js",
+      "scan.js",
+      "importExport.js",
+      "renderer/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

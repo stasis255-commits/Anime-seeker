@@ -1,0 +1,2548 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Seeker（アニソン聞き取り→映像自動同期ツール）</title>
+<style>
+  :root {
+    --bg: #0a120d;
+    --panel: #101d16;
+    --panel-2: #17281f;
+    --border: #2b4636;
+    --text: #e6f1ea;
+    --text-dim: #8fab9b;
+    --accent: #3ecf7e;
+    --accent-2: #8be9b0;
+    --accent-text: #06210f;
+    --danger: #ff6b6b;
+    --warn: #e8c76b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--text-dim); font-size: 12px; }
+
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 20px 0 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+  }
+  nav.tabs button.active {
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+  }
+
+  main { padding: 20px; max-width: 1320px; margin: 0 auto; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .col-main, .col-side { min-width: 0; }
+  @media (max-width: 900px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 12px 0; color: var(--text-dim); font-weight: 600; letter-spacing: .02em; }
+
+  button.btn {
+    background: var(--accent);
+    color: var(--accent-text);
+    border: none;
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  button.btn.danger { background: var(--danger); color: #250505; }
+  button.btn:disabled { opacity: .4; cursor: not-allowed; }
+  button.btn + button.btn { margin-left: 8px; }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .status-item { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; }
+  .status-item .label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .status-item .value { font-size: 16px; font-weight: 600; }
+  .status-item .value.locked { color: var(--accent-2); }
+  .status-item .value.err { color: var(--danger); }
+
+  .video-wrap video {
+    width: 100%;
+    max-height: 360px;
+    background: #000;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .video-wrap {
+    position: relative;
+  }
+  .video-wrap .blackout-overlay {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    border-radius: 8px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: #56715f;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+  }
+  .video-wrap.blackout .blackout-overlay {
+    display: flex;
+  }
+
+  textarea.log, pre.log {
+    width: 100%;
+    height: 220px;
+    background: #081310;
+    color: #aecdb9;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    padding: 8px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .roots-list { list-style: none; margin: 0 0 10px 0; padding: 0; }
+  .roots-list li {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel-2); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 13px;
+  }
+  .roots-list .perm-badge { font-size: 11px; padding: 2px 6px; border-radius: 10px; margin-right: 8px; }
+  .perm-badge.granted { background: #17351f; color: var(--accent-2); }
+  .perm-badge.unknown { background: #3a2f17; color: var(--warn); }
+
+  form.settings-form { display: grid; grid-template-columns: 220px 1fr; gap: 10px 14px; align-items: center; max-width: 640px; }
+  form.settings-form label { font-size: 13px; color: var(--text-dim); }
+  form.settings-form input[type=text], form.settings-form input[type=number], form.settings-form select {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; border-radius: 6px; font-size: 13px; width: 100%;
+  }
+  .help { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  #tab-settings .card, #tab-help .card { max-width: 760px; }
+  .warn-box {
+    background: #2a2210; border: 1px solid #4a3a12; color: var(--warn);
+    border-radius: 8px; padding: 10px 12px; font-size: 12px; margin-bottom: 14px; line-height: 1.6;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Anime Seeker</h1>
+    <div class="sub">アニソン聞き取り → 映像自動同期ツール（ブラウザ版） / 完全オフライン・自作音響指紋方式 / インストール不要（Chrome・Edge推奨）</div>
+  </div>
+  <div class="sub" id="browserSupportBadge"></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="recognize">認識・再生</button>
+  <button class="tab-btn" data-tab="settings">設定</button>
+  <button class="tab-btn" data-tab="help">使い方・注意点</button>
+</nav>
+
+<main>
+
+  <!-- ============ 認識・再生タブ（ライブラリ統合） ============ -->
+  <section id="tab-recognize" class="tab-panel active">
+    <div class="card" id="startupNoticeCard" style="display:none;">
+      <p class="help" id="startupNotice" style="margin:0;"></p>
+    </div>
+
+    <div class="two-col">
+      <!-- 左: 認識・再生 -->
+      <div class="col-main">
+        <div class="card">
+          <h2>プレビュー</h2>
+          <div class="video-wrap" id="previewVideoWrap">
+            <video id="previewVideo" playsinline muted loop></video>
+            <div class="blackout-overlay" id="previewBlackoutOverlay">無音のため黒画面</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>操作</h2>
+          <div class="row">
+            <button class="btn" id="startBtn">▶ 開始（マイク許可を求めます）</button>
+            <button class="btn secondary" id="stopBtn" disabled>■ 停止</button>
+            <button class="btn secondary" id="fullscreenBtn">⛶ 全画面</button>
+            <button class="btn secondary" id="ndiWindowBtn">🡵 NDI出力用の別ウィンドウを開く</button>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button class="btn secondary" id="manualRecheckBtn" disabled>🔄 手動で再読み込み</button>
+            <button class="btn secondary" id="manualBlackoutBtn" disabled>⚫ 手動で黒画面</button>
+          </div>
+          <p class="help" style="margin-top:10px;">
+            「NDI出力用の別ウィンドウを開く」は、映像だけを映した小さな別ウィンドウを
+            開きます。これを <b>NDI Screen Capture</b>（無料・別途インストール）で
+            キャプチャしてNDIソースとして配信すると、Resolumeの「Sources」タブに
+            自動的に現れ、VirtualDJのNDI出力と同じ感覚でVJレイヤーとして使えます。
+            詳しい手順は「使い方・注意点」タブをご覧ください。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>状態</h2>
+          <div class="status-grid">
+            <div class="status-item"><div class="label">状態</div><div class="value" id="stRunning">停止中</div></div>
+            <div class="status-item"><div class="label">認識中の曲</div><div class="value" id="stTitle">-</div></div>
+            <div class="status-item"><div class="label">信頼度スコア</div><div class="value" id="stScore">-</div></div>
+            <div class="status-item"><div class="label">動画再生位置</div><div class="value" id="stPos">-</div></div>
+            <div class="status-item"><div class="label">無音検出</div><div class="value" id="stSilence">-</div></div>
+            <div class="status-item"><div class="label">エラー</div><div class="value err" id="stError">-</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>照合候補ログ</h2>
+          <pre class="log" id="candidatesLog"></pre>
+        </div>
+      </div>
+
+      <!-- 右: ライブラリ -->
+      <div class="col-side">
+        <div class="warn-box">
+          音声を取り出せる形式はブラウザのデコーダ次第です。多くの場合 mp4(H.264+AAC) /
+          webm(VP9+Opus) は問題なく読めますが、対応していないコーデックのファイルは
+          スキップされ、ログにエラーとして表示されます。
+        </div>
+
+        <div class="card">
+          <h2>スキャン対象フォルダ（内部フォルダ・外部VJ用ドライブ等）</h2>
+          <p class="help" style="margin-top:0;">
+            外部ドライブ（VJ用のE:ドライブなど）を追加するときは、<b>ドライブの
+            一番上の階層（E:\ そのもの）ではなく、その中のフォルダ</b>
+            （例: E:\Anime）を選んでください。ドライブ直下はブラウザの制限で
+            正しく読み取れないことがあります。中に何もフォルダが無ければ、
+            先にエクスプローラーでフォルダを1つ作ってから選んでください。
+          </p>
+          <ul class="roots-list" id="rootsList"></ul>
+          <div class="row">
+            <button class="btn secondary" id="addRootBtn">＋ フォルダを追加</button>
+            <button class="btn secondary" id="reloadRootsBtn">保存済みフォルダの権限を再確認</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>ライブラリ構築</h2>
+          <div class="row" style="margin-bottom:10px;">
+            <label style="font-size:13px;color:var(--text-dim);">1ファイルあたりの解析上限秒数（空欄=全編解析）</label>
+            <input type="number" id="maxDurationInput" style="width:100px;" placeholder="例: 120">
+          </div>
+          <div class="row">
+            <button class="btn" id="buildBtn">ライブラリを構築 / 更新</button>
+            <button class="btn danger" id="buildStopBtn" disabled>中断</button>
+            <span class="sub" id="libSummary" style="margin-left:auto;"></span>
+          </div>
+          <p class="help" style="margin-top:8px;">
+            「中断」は押した時点でログにすぐ反映されます。ただし処理中の1ファイルの
+            解析（デコード等）はブラウザの仕組み上、途中で止めることができないため、
+            実際に停止するのはそのファイルの処理が一段落してからになります。1ファイル
+            あたりの解析上限秒数を短めに設定しておくと、この待ち時間も短くなります。
+          </p>
+          <pre class="log" id="buildLog" style="margin-top:10px;"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 設定タブ ============ -->
+  <section id="tab-settings" class="tab-panel">
+    <div class="card">
+      <h2>マイク</h2>
+      <form class="settings-form" onsubmit="return false;">
+        <label>入力デバイス</label>
+        <div class="row">
+          <select id="micSelect" class="grow"></select>
+          <button class="btn secondary" type="button" id="refreshMicBtn">一覧更新</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>認識パラメータ</h2>
+      <form class="settings-form" onsubmit="return false;">
+        <label>照合ウィンドウ長(秒)</label>
+        <input type="number" id="cfgQueryWindow" step="0.5" min="3" max="20">
+        <label>照合間隔(秒)</label>
+        <input type="number" id="cfgPollInterval" step="0.5" min="0.5" max="10">
+        <label>最小信頼度スコア</label>
+        <input type="number" id="cfgMinConfidence" step="1" min="1" max="100">
+        <label>連続一致で確定させる回数</label>
+        <input type="number" id="cfgAgreementRequired" step="1" min="1" max="10">
+        <label>曲切り替え検知ウィンドウ長(秒)</label>
+        <input type="number" id="cfgQuickWindow" step="0.5" min="1" max="8">
+        <label>曲切り替え検知の間隔(秒)</label>
+        <input type="number" id="cfgQuickPollInterval" step="0.5" min="0.5" max="5">
+        <label>動画自体の音声もミュートせず再生する</label>
+        <input type="checkbox" id="cfgUnmute" style="width:auto;justify-self:start;">
+      </form>
+      <p class="help" style="margin-top:8px;">
+        「曲切り替え検知ウィンドウ長」は、周囲の曲が別の曲に変わったことを素早く
+        検知するために使う短い区間の長さです。短くするほど切り替えが早くなりますが、
+        短すぎると誤検出が増える場合があります。「曲切り替え検知の間隔」は、この
+        短い区間の解析をどれくらいの頻度で行うかです（照合間隔とは別に、これ専用に
+        独立して動きます）。短くするほど切り替わりが早く反映されますが、PCの負荷は
+        上がります。
+      </p>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="saveSettingsBtn">設定を保存</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>無音検出（画面を黒くする）</h2>
+      <form class="settings-form" onsubmit="return false;">
+        <label>無音とみなす音量しきい値(RMS)</label>
+        <input type="number" id="cfgSilenceThreshold" step="0.001" min="0" max="1">
+        <label>黒画面に切り替えるまでの無音継続秒数</label>
+        <input type="number" id="cfgSilenceSeconds" step="1" min="2" max="60">
+      </form>
+      <p class="help" style="margin-top:8px;">
+        マイクの音量がしきい値を下回っている状態が続いた時間を無音として計測します。
+        周囲が完全に無音でなくても常に小さな環境音を拾ってしまい黒画面にならない
+        場合はしきい値を上げ、逆に小さな物音で黒画面が解除されすぎる場合は
+        しきい値を下げてください。
+      </p>
+      <p class="help" style="margin-top:8px;">
+        設定の保存は上の「認識パラメータ」欄の「設定を保存」ボタンで、この欄も
+        まとめて保存されます。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>ライブラリのエクスポート（デスクトップアプリへの移行用）</h2>
+      <p class="help" style="margin-top:0;">
+        構築済みのライブラリ（曲の一覧・音響指紋データ）をファイル(.ndjson)へ
+        書き出します。将来的にデスクトップアプリ版へ移行する際、このファイルを
+        読み込ませることで<b>再スキャンなし</b>で曲データを引き継げます。
+        動画ファイル自体はコピーされません（フォルダの相対パスとフォルダ名の
+        みを記録するので、デスクトップアプリ側でも同じ動画フォルダを選び直す
+        必要があります）。
+      </p>
+      <div class="row">
+        <button class="btn secondary" id="exportLibraryBtn">📤 ライブラリをエクスポート</button>
+      </div>
+      <pre class="log" id="exportLog" style="margin-top:10px;"></pre>
+    </div>
+
+    <div class="card">
+      <h2>データ管理</h2>
+      <div class="row">
+        <button class="btn danger" id="clearAllBtn">保存されたライブラリ・設定をすべて削除</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 使い方タブ ============ -->
+  <section id="tab-help" class="tab-panel">
+    <div class="card">
+      <h2>これは何か</h2>
+      <p class="help">
+        マイクで周囲に流れているアニソンを聞き取り、あらかじめ指定したフォルダ
+        （内部ストレージ・外部VJ用ドライブなど）にあるアニメ映像(mp4/webm等)の中から
+        音声が一致するものを自動的に探し出し、再生位置を合わせながら再生します。
+        すべてブラウザだけで完結し、外部の音楽認識サービスやサーバーには一切
+        接続しません（完全オフラインの自作音響指紋方式）。
+      </p>
+    </div>
+    <div class="card">
+      <h2>使い方（初回のみ）</h2>
+      <p class="help">
+        1. 「認識・再生」タブの右側にある「ライブラリ」欄でフォルダを追加し、
+        「ライブラリを構築 / 更新」を押します。<br>
+        2. 「設定」タブでマイクを選び、必要ならパラメータを調整して保存します。<br>
+        3. 「認識・再生」タブの左側で「▶ 開始」を押すと、マイク許可のダイアログが
+        出ます。許可すると認識と自動再生が始まります。<br>
+        4. 動画プレビューを第2画面（プロジェクター等）にドラッグしてから「全画面表示」を押すと、
+        VJ出力として使えます。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>2回目以降の起動について（重要）</h2>
+      <p class="help">
+        構築したライブラリ（曲の一覧・音響指紋データ）とフォルダの登録は、
+        このブラウザの中(IndexedDB)に自動的に保存されます。<b>次回このページを
+        開いたときにフォルダ選択やライブラリ構築をやり直す必要はありません。</b>
+        ページを開くと保存されたライブラリが自動的に読み込まれるので、そのまま
+        「▶ 開始」を押すだけで使えます（画面上部に読み込み件数の通知が出ます）。<br><br>
+        ただしブラウザやPCを再起動した後は、ブラウザのセキュリティ仕様により
+        フォルダへの読み取り許可が失効していることがあります。この場合は
+        「▶ 開始」を押した際に許可の確認ダイアログが表示されることがあるので、
+        許可してください（これは一瞬で終わり、スキャンやライブラリ構築のやり直し
+        ではありません）。<br><br>
+        ライブラリの構築 / 更新が必要になるのは、<b>新しい動画ファイルを
+        追加したとき</b>だけです。その場合も、既に登録済みのファイルは自動的に
+        スキップされ、新しく増えた分だけが解析されます。
+      </p>
+    </div>
+    <div class="card">
+      <h2>動作環境・注意点</h2>
+      <p class="help">
+        - <b>推奨ブラウザ: Google Chrome または Microsoft Edge</b>（フォルダへの直接アクセスに
+        File System Access API を使用しており、Firefox / Safari では動作しません）。<br>
+        - このファイルはインターネットに繋がずダブルクリックで開いても動作します
+        （file:// で開いた場合でもマイク・フォルダアクセスはブラウザが許可すれば動きますが、
+        環境によっては一度簡易サーバー経由で開く必要がある場合があります）。<br>
+        - 認識したライブラリ・フォルダへのアクセス権はこの端末のブラウザ内
+        (IndexedDB)にのみ保存されます。外部には一切送信されません。<br>
+        - 周囲雑音が大きい環境では認識の信頼度が下がります。雑音が音楽と同程度以上に
+        大きい場合は、誤った曲を再生するより「安全側に倒して何も再生しない」ように
+        意図的に設計しています。<br>
+        - ごく稀に、似た旋律が何度も出てくる楽曲では「曲は合っているが再生位置がずれる」
+        ことがあります。気になる場合は設定の「連続一致で確定させる回数」を増やしてください。<br>
+        - <code>&lt;video&gt;</code> タグの自動再生ポリシー上、ページを開いてから一度も
+        クリックしていない状態では動画の再生がブロックされることがあります。その場合は
+        「▶ 開始」ボタンを押した操作自体がクリックとして扱われるため、通常は問題ありません。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Resolumeへ NDI で映像出力する（VirtualDJと同じ運用にする）</h2>
+      <p class="help">
+        ブラウザ上のJavaScriptには、NDIプロトコルを直接送信する手段がありません
+        （NDIは専用SDK・ネットワークソケットを使う仕組みで、Webページからは
+        アクセスできない領域です）。そのため本ツール自体がVirtualDJのように
+        「内蔵のNDI出力」を持つことはできませんが、無料の
+        <b>NDI Screen Capture</b>（NewTek/NDI公式ツール、Windows対応）を
+        画面キャプチャの橋渡しとして使うことで、実用上ほぼ同じことが実現できます。
+      </p>
+      <p class="help" style="margin-top:10px;">
+        <b>手順</b><br>
+        1. 「認識・再生」タブの「🡵 NDI出力用の別ウィンドウを開く」を押します。
+        映像だけを映した小さなウィンドウが別に開きます（元のプレビューはそのまま
+        再生され続けます）。このウィンドウを、キャプチャしやすい場所
+        （例: 使っていないモニタや画面の隅）に置いておきます。<br>
+        2. <a href="https://ndi.video/tools/screen-capture/" target="_blank" rel="noopener">NDI Tools（NDI Screen Capture を含む無料ツール集）</a>
+        をインストールします。<br>
+        3. NDI Screen Capture を起動し、キャプチャ対象として先ほどの
+        「NDI出力ウィンドウ」を選択します（画面全体ではなく、そのウィンドウ／
+        その領域だけを選ぶと余計なものが映り込みません）。配信名（NDIソース名）を
+        分かりやすい名前（例: AnisongVJ）に設定します。<br>
+        4. Resolume の「Sources」タブを開きます。ネットワーク上にNDIソースが
+        流れていれば自動的に一覧に現れるので、先ほどの名前のソースをレイヤー／
+        クリップにドラッグして使います。<br>
+        5. もし一覧に出てこない場合は、両方のPCが同じネットワーク（同じルーター
+        配下）にあるか、WindowsのファイアウォールがNDIの通信をブロックして
+        いないかを確認してください。
+      </p>
+      <p class="help" style="margin-top:10px;">
+        <b>補足</b><br>
+        - より高度な合成（複数ソースの切り替え、クロップ、拡大縮小など）をしたい
+        場合は、NDI Screen Captureの代わりに <b>OBS Studio</b>
+        （ウィンドウキャプチャ）＋ <b>obs-ndi プラグイン</b>を使う方法もあります。
+        こちらの方が画質・柔軟性の面で有利なことがありますが、設定はやや複雑です。<br>
+        - 「NDI出力用の別ウィンドウ」の映像に動画自体の音声も乗せたい場合は、
+        「設定」タブの「動画自体の音声もミュートせず再生する」をオンにしてください
+        （通常はDJ側の音声がそのまま鳴っているため、オフのままで問題ありません）。<br>
+        - ブラウザの仕様上、映像の再生位置を合わせるための頻繁なシーク（早送り／
+        巻き戻し相当の操作）の直後などに、まれにこのウィンドウの映像だけが
+        一瞬固まったように見えることがあります。これを軽減するため、シークの
+        直後や、映像が実際に止まっていると判定した場合には自動的に再接続する
+        ようにしていますが、それでも固まって戻らない場合は「🡵 NDI出力用の
+        別ウィンドウを開く」をもう一度押すと、開いたままの状態で手動で
+        再接続できます。
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ==========================================================================
+ * PART 1: core.js の内容（音響指紋のコアアルゴリズム）
+ * デスクトップ版(Python) fingerprint.py / matcher.py と同じロジック・
+ * 同じパラメータを JavaScript に移植したもの。Node.js上で合成音声を使い、
+ * 複数曲・複数オフセット・複数雑音レベルの組み合わせで動作検証済み。
+ * ========================================================================== */
+/* ============================================================================
+ * core.js
+ * ----------------------------------------------------------------------------
+ * 音響指紋（Shazam方式のランドマークハッシュ）のコアアルゴリズム。
+ * ブラウザ / Node.js の両方で動く純粋なJavaScript関数のみで構成しており、
+ * DOMやWeb Audio APIには一切依存しない（テスト可能にするため）。
+ *
+ * Pythonデスクトップ版(anisong_vj_sync)で実測・検証済みのパラメータを
+ * そのまま移植している。
+ * ==========================================================================*/
+
+// ---- パラメータ（Python版 fingerprint.py と同じ値） -----------------------
+const TARGET_SAMPLE_RATE = 11025;
+const FFT_WINDOW_SIZE = 4096;
+const FFT_HOP_SIZE = 2048;
+const PEAK_NEIGHBORHOOD_FREQ = 18;
+const PEAK_NEIGHBORHOOD_TIME = 18;
+const AMPLITUDE_PERCENTILE = 90;
+const FAN_VALUE = 8;
+const MIN_TIME_DELTA_FRAMES = 1;
+const MAX_TIME_DELTA_FRAMES = 20;
+const FREQ_BITS = 10;
+const DELTA_BITS = 12;
+
+const DELTA_BUCKET_FRAMES = 3;
+const MIN_SCORE_MARGIN_RATIO = 1.3;
+
+// ----------------------------------------------------------------------------
+// FFT (反復版 radix-2 Cooley-Tukey, サイズは2の累乗前提)
+// ----------------------------------------------------------------------------
+function fftInPlace(re, im) {
+  const n = re.length;
+  // ビット反転並べ替え
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) {
+      j ^= bit;
+    }
+    j ^= bit;
+    if (i < j) {
+      let tmp = re[i]; re[i] = re[j]; re[j] = tmp;
+      tmp = im[i]; im[i] = im[j]; im[j] = tmp;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = (-2 * Math.PI) / len;
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let curRe = 1, curIm = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const uRe = re[i + k], uIm = im[i + k];
+        const vRe = re[i + k + len / 2] * curRe - im[i + k + len / 2] * curIm;
+        const vIm = re[i + k + len / 2] * curIm + im[i + k + len / 2] * curRe;
+        re[i + k] = uRe + vRe;
+        im[i + k] = uIm + vIm;
+        re[i + k + len / 2] = uRe - vRe;
+        im[i + k + len / 2] = uIm - vIm;
+        const nextRe = curRe * wRe - curIm * wIm;
+        const nextIm = curRe * wIm + curIm * wRe;
+        curRe = nextRe; curIm = nextIm;
+      }
+    }
+  }
+}
+
+// Hann窓（あらかじめ計算してキャッシュする）
+const _hannCache = new Map();
+function hannWindow(size) {
+  if (_hannCache.has(size)) return _hannCache.get(size);
+  const w = new Float64Array(size);
+  for (let i = 0; i < size; i++) {
+    w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (size - 1));
+  }
+  _hannCache.set(size, w);
+  return w;
+}
+
+/**
+ * モノラルPCM(Float32Array, 11025Hz前提)からスペクトログラム(dB)を計算する。
+ * 戻り値: { numFrames, numBins, data } data は Float32Array([frame*numBins+bin])
+ */
+function computeSpectrogram(samples, windowSize = FFT_WINDOW_SIZE, hopSize = FFT_HOP_SIZE) {
+  const n = samples.length;
+  const numBins = windowSize / 2 + 1;
+  if (n < windowSize) {
+    return { numFrames: 0, numBins, data: new Float32Array(0) };
+  }
+  const numFrames = Math.floor((n - windowSize) / hopSize) + 1;
+  const data = new Float32Array(numFrames * numBins);
+  const win = hannWindow(windowSize);
+
+  const re = new Float64Array(windowSize);
+  const im = new Float64Array(windowSize);
+
+  for (let f = 0; f < numFrames; f++) {
+    const start = f * hopSize;
+    for (let i = 0; i < windowSize; i++) {
+      re[i] = samples[start + i] * win[i];
+      im[i] = 0;
+    }
+    fftInPlace(re, im);
+    const rowOffset = f * numBins;
+    for (let b = 0; b < numBins; b++) {
+      const mag = Math.sqrt(re[b] * re[b] + im[b] * im[b]);
+      data[rowOffset + b] = 20 * Math.log10(mag + 1e-6);
+    }
+  }
+  return { numFrames, numBins, data };
+}
+
+// ----------------------------------------------------------------------------
+// ピーク検出: 2次元の局所最大値を「分離可能な移動最大値フィルタ」で高速に
+// 求める（フレーム軸→周波数軸の順に1次元の移動最大値を適用すると、2次元の
+// 矩形窓での最大値フィルタと数学的に同じ結果になる。O(N)のモノトニック
+// デックで計算するので、ナイーブなO(N*window^2)実装より大幅に高速）。
+// ----------------------------------------------------------------------------
+function slidingMax1D(arr, length, windowSize) {
+  // 対称に近い窓（前方 floor((w-1)/2), 後方 ceil((w-1)/2)）
+  const before = Math.floor((windowSize - 1) / 2);
+  const after = windowSize - 1 - before;
+  const out = new Float32Array(length);
+  const dq = new Int32Array(length);
+  let head = 0, tail = 0; // [head, tail)
+
+  for (let i = 0; i < length + after; i++) {
+    if (i < length) {
+      while (tail > head && arr[dq[tail - 1]] <= arr[i]) tail--;
+      dq[tail++] = i;
+    }
+    const outIdx = i - after;
+    if (outIdx >= 0 && outIdx < length) {
+      while (dq[head] < outIdx - before) head++;
+      out[outIdx] = arr[dq[head]];
+    }
+  }
+  return out;
+}
+
+function findPeaks(spec) {
+  const { numFrames, numBins, data } = spec;
+  if (numFrames === 0) return [];
+
+  // 1) フレーム軸(時間方向)にスライディング最大値
+  const stepMax = new Float32Array(numFrames * numBins);
+  {
+    const col = new Float32Array(numFrames);
+    for (let b = 0; b < numBins; b++) {
+      for (let f = 0; f < numFrames; f++) col[f] = data[f * numBins + b];
+      const maxed = slidingMax1D(col, numFrames, PEAK_NEIGHBORHOOD_TIME);
+      for (let f = 0; f < numFrames; f++) stepMax[f * numBins + b] = maxed[f];
+    }
+  }
+  // 2) 周波数軸にスライディング最大値 → 2次元の局所最大値が完成
+  const localMax = new Float32Array(numFrames * numBins);
+  {
+    for (let f = 0; f < numFrames; f++) {
+      const row = stepMax.subarray(f * numBins, f * numBins + numBins);
+      const maxed = slidingMax1D(row, numBins, PEAK_NEIGHBORHOOD_FREQ);
+      localMax.set(maxed, f * numBins);
+    }
+  }
+
+  // 振幅の閾値(パーセンタイル)
+  const threshold = percentile(data, AMPLITUDE_PERCENTILE);
+
+  const peaks = [];
+  for (let f = 0; f < numFrames; f++) {
+    const rowOffset = f * numBins;
+    for (let b = 0; b < numBins; b++) {
+      const v = data[rowOffset + b];
+      if (v === localMax[rowOffset + b] && v > threshold) {
+        peaks.push({ frame: f, bin: b });
+      }
+    }
+  }
+  // 時間順（フレーム→ビン）にソート
+  peaks.sort((a, b) => (a.frame - b.frame) || (a.bin - b.bin));
+  return peaks;
+}
+
+function percentile(float32arr, pct) {
+  // 大きい配列でのフルソートは重いので、必要なら間引いてから計算する
+  const n = float32arr.length;
+  if (n === 0) return 0;
+  const maxSamples = 200000;
+  let sample;
+  if (n > maxSamples) {
+    const stride = Math.ceil(n / maxSamples);
+    sample = new Float32Array(Math.ceil(n / stride));
+    let j = 0;
+    for (let i = 0; i < n; i += stride) sample[j++] = float32arr[i];
+  } else {
+    sample = float32arr.slice();
+  }
+  const arr = Array.from(sample);
+  arr.sort((a, b) => a - b);
+  const idx = Math.min(arr.length - 1, Math.max(0, Math.floor((pct / 100) * arr.length)));
+  return arr[idx];
+}
+
+// ----------------------------------------------------------------------------
+// ハッシュ生成（アンカー×ターゲットゾーンのファンアウト）
+// ----------------------------------------------------------------------------
+function packHash(freq1, freq2, deltaFrames) {
+  const f1 = freq1 & ((1 << FREQ_BITS) - 1);
+  const f2 = freq2 & ((1 << FREQ_BITS) - 1);
+  const dt = deltaFrames & ((1 << DELTA_BITS) - 1);
+  return (((f1 << (FREQ_BITS + DELTA_BITS)) | (f2 << DELTA_BITS) | dt) >>> 0);
+}
+
+// ----------------------------------------------------------------------------
+// hashIndex のメモリ節約用パッキング
+// ----------------------------------------------------------------------------
+// hashIndex は本来 Map<hash, Array<[songId, anchorFrame]>> という形が自然だが、
+// hash値は32bitのほぼ全域(FREQ_BITS*2+DELTA_BITS=32bit)を使って分散するため、
+// 曲数・ハッシュ数が非常に多い大規模ライブラリ(数百万〜数千万エントリ)では
+// 「ほぼ1エントリにつき1つの配列オブジェクト+その中の2要素配列」という
+// 入れ子配列だらけの表現になり、配列オブジェクトの生成コスト(V8のオブジェクト
+// ヘッダ等のオーバーヘッド)がメモリ使用量の大半を占めてしまう。これが原因で
+// ライブラリの曲数が一定数を超えるとブラウザタブがメモリ不足でクラッシュする
+// 不具合が起きていた。
+//
+// そこで、(songId, anchorFrame) の組を1つの数値に詰めて(パックして)持たせる
+// ことで、他の曲と衝突しない大多数のハッシュ値(統計的にはほぼ全体)については
+// 配列を一切生成せず、Mapの値として数値を1つだけ持たせるようにする。衝突時
+// (同じhash値が複数の曲・位置から生成された場合)だけ配列に格上げする。
+//   packed = songId * ANCHOR_FRAME_MULT + anchorFrame
+// ANCHOR_FRAME_MULT=2^24なので、1曲あたり最大で約1677万フレーム(1フレームは
+// 約0.186秒なので、約866時間・36日分の音声)まで対応でき、実用上まず問題にならない。
+const ANCHOR_FRAME_BITS = 24;
+const ANCHOR_FRAME_MULT = Math.pow(2, ANCHOR_FRAME_BITS); // 2^24 = 16,777,216
+
+function packHashEntry(songId, anchorFrame) {
+  return songId * ANCHOR_FRAME_MULT + anchorFrame;
+}
+function unpackHashEntry(packed) {
+  const songId = Math.floor(packed / ANCHOR_FRAME_MULT);
+  const anchorFrame = packed - songId * ANCHOR_FRAME_MULT;
+  return [songId, anchorFrame];
+}
+// hashIndexへ1件のエントリを追加する共通ヘルパー(ライブラリ構築中の逐次
+// 追加・保存済みデータからの再構築のどちらからも使う)。
+function addHashEntry(hashIndex, hash, songId, anchorFrame) {
+  const packed = packHashEntry(songId, anchorFrame);
+  const existing = hashIndex.get(hash);
+  if (existing === undefined) {
+    hashIndex.set(hash, packed);
+  } else if (Array.isArray(existing)) {
+    existing.push(packed);
+  } else {
+    hashIndex.set(hash, [existing, packed]);
+  }
+}
+
+/**
+ * ピーク列からハッシュを生成する。
+ * 戻り値: [{hash, anchorFrame}, ...]
+ */
+function generateHashes(peaks) {
+  const hashes = [];
+  const n = peaks.length;
+  for (let i = 0; i < n; i++) {
+    const anchor = peaks[i];
+    let paired = 0;
+    for (let j = i + 1; j < n; j++) {
+      const target = peaks[j];
+      const dt = target.frame - anchor.frame;
+      if (dt < MIN_TIME_DELTA_FRAMES) continue;
+      if (dt > MAX_TIME_DELTA_FRAMES) break;
+      const h = packHash(anchor.bin, target.bin, dt);
+      hashes.push({ hash: h, anchorFrame: anchor.frame });
+      paired++;
+      if (paired >= FAN_VALUE) break;
+    }
+  }
+  return hashes;
+}
+
+function frameToSeconds(frame, sampleRate = TARGET_SAMPLE_RATE) {
+  return (frame * FFT_HOP_SIZE) / sampleRate;
+}
+function secondsToFrame(seconds, sampleRate = TARGET_SAMPLE_RATE) {
+  return Math.round((seconds * sampleRate) / FFT_HOP_SIZE);
+}
+
+/**
+ * サンプル配列(11025Hzのモノラル)から直接ハッシュ列を得るユーティリティ。
+ */
+function fingerprintSamples(samples) {
+  if (!samples || samples.length === 0) return [];
+  const spec = computeSpectrogram(samples);
+  const peaks = findPeaks(spec);
+  return generateHashes(peaks);
+}
+
+// ----------------------------------------------------------------------------
+// マッチング（投票 + バケツ丸め + マージン判定）。Python版 matcher.py と同じロジック。
+// ----------------------------------------------------------------------------
+/**
+ * hashIndex: Map<hash:number, number | number[]>
+ *   (値は packHashEntry(songId, anchorFrame) でパックした数値。衝突が無ければ
+ *    数値1つ、衝突があれば数値の配列。詳細はaddHashEntry/unpackHashEntry参照)
+ * queryHashes: [{hash, anchorFrame}, ...]
+ *
+ * 戻り値:
+ *   {
+ *     matched: boolean,
+ *     songId, score, referenceOffsetSeconds,
+ *     candidates: [[songId, score], ...]  (上位、デバッグ用)
+ *   }
+ */
+function matchHashes(hashIndex, queryHashes, minConfidence = 8, requireMargin = true) {
+  if (!queryHashes.length) return { matched: false, candidates: [] };
+
+  // (songId, bucket) -> [deltaFrames, ...]
+  const rawDeltas = new Map();
+  for (const qh of queryHashes) {
+    const matches = hashIndex.get(qh.hash);
+    if (matches === undefined) continue;
+    // hashIndexの値は、メモリ節約のため「衝突が無ければ数値1つ、衝突があれば
+    // 数値の配列」というパック形式になっている(addHashEntry/packHashEntry参照)。
+    const packedList = Array.isArray(matches) ? matches : [matches];
+    for (const packed of packedList) {
+      const [songId, dbAnchorFrame] = unpackHashEntry(packed);
+      const delta = dbAnchorFrame - qh.anchorFrame;
+      const bucket = Math.round(delta / DELTA_BUCKET_FRAMES);
+      const key = songId + ':' + bucket;
+      let arr = rawDeltas.get(key);
+      if (!arr) { arr = { songId, bucket, deltas: [] }; rawDeltas.set(key, arr); }
+      arr.deltas.push(delta);
+    }
+  }
+
+  if (rawDeltas.size === 0) return { matched: false, candidates: [] };
+
+  const ranked = Array.from(rawDeltas.values()).sort((a, b) => b.deltas.length - a.deltas.length);
+
+  const bestPerSong = new Map();
+  for (const entry of ranked) {
+    const cur = bestPerSong.get(entry.songId) || 0;
+    if (entry.deltas.length > cur) bestPerSong.set(entry.songId, entry.deltas.length);
+  }
+  const candidateSummary = Array.from(bestPerSong.entries()).sort((a, b) => b[1] - a[1]);
+
+  const top = ranked[0];
+  const topScore = top.deltas.length;
+  const meanDelta = top.deltas.reduce((a, b) => a + b, 0) / top.deltas.length;
+  const referenceOffsetSeconds = frameToSeconds(meanDelta);
+
+  // 最有力候補(トップ候補)のスコア・推定位置は、最小信頼度スコアやスコア差の
+  // 判定(matched)に関わらず常に含めておく。「照合候補ログ」の表示に使うのは
+  // もちろん、matchedがfalseの場合でも「3回連続で1位候補だった」といった
+  // 即時ロック判定など、呼び出し側の補助的な判定に使えるようにするため。
+  const base = {
+    candidates: candidateSummary,
+    songId: top.songId,
+    score: topScore,
+    totalQueryHashes: queryHashes.length,
+    referenceOffsetSeconds,
+  };
+
+  if (topScore < minConfidence) {
+    return { matched: false, ...base };
+  }
+
+  if (requireMargin && candidateSummary.length >= 2) {
+    const [secondSongId, secondScore] = candidateSummary[1];
+    if (secondSongId !== top.songId && topScore < secondScore * MIN_SCORE_MARGIN_RATIO) {
+      return { matched: false, ...base };
+    }
+  }
+
+  return { matched: true, ...base };
+}
+
+/* ======================== PART 1 ここまで ================================ */
+
+
+/* ==========================================================================
+ * PART 2: IndexedDB 永続化ヘルパー
+ * ========================================================================== */
+const DB_NAME = 'anisong_vj_web';
+// v2: 曲ごとのハッシュを 'songHashes' ストアに分割保存するようにした
+// (1曲登録するごとに逐次保存できるようにするため。旧v1では 'kv' に
+// ライブラリ全体のハッシュ表をまとめて1レコードとして保存していたため、
+// 曲数が増えるほど保存1回あたりのコストがライブラリ全体のサイズに比例して
+// 重くなり、頻繁な保存が非現実的だった)。
+const DB_VERSION = 2;
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('songs')) db.createObjectStore('songs', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('dirHandles')) db.createObjectStore('dirHandles', { keyPath: 'key' });
+      // 曲ごとのハッシュ一覧。{ songId, hashes: [{hash, anchorFrame}, ...] }
+      if (!db.objectStoreNames.contains('songHashes')) db.createObjectStore('songHashes', { keyPath: 'songId' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+function idbGetAll(db, storeName) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbGet(db, storeName, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function persistRoots(db, roots) {
+  const tx = db.transaction('dirHandles', 'readwrite');
+  const store = tx.objectStore('dirHandles');
+  store.clear();
+  for (const r of roots) store.put({ key: r.key, handle: r.handle, label: r.label });
+  await txDone(tx);
+}
+
+// 曲を1曲登録するたびに呼ぶ。その曲のメタ情報とハッシュ一覧だけを書き込む
+// ため、ライブラリ全体のサイズに関係なく常に軽い(=曲数が増えても遅くならない)。
+// これにより、ライブラリ構築の途中でブラウザが落ちたり固まったりしても、
+// 直前までに完了した曲はその都度確実にディスクへ保存済みになる。
+async function persistSongIncremental(db, song, hashes, nextId) {
+  const tx = db.transaction(['songs', 'songHashes', 'kv'], 'readwrite');
+  tx.objectStore('songs').put(song);
+  // [hash, anchorFrame] のコンパクトな配列として保存する({hash, anchorFrame}の
+  // オブジェクトにすると、曲数・ハッシュ数が多い大規模ライブラリでは保存容量も
+  // 読み込み時のメモリ使用量も無視できないほど増えるため)。
+  const compact = hashes.map((h) => [h.hash, h.anchorFrame]);
+  tx.objectStore('songHashes').put({ songId: song.id, hashes: compact });
+  tx.objectStore('kv').put({ key: 'nextSongId', value: nextId });
+  await txDone(tx);
+}
+
+// hashIndexキャッシュの内部形式のバージョン。packHashEntry/addHashEntryによる
+// パック形式に変更した際、キャッシュの中身の形式も変わった(Map<hash,
+// Array<[songId,anchorFrame]>> だったものが Map<hash, number|number[]> に
+// なった)ため、古い形式のキャッシュをそのまま高速パスで使ってしまわないよう
+// バージョン番号を持たせて突き合わせる。一致しなければ('songHashes'から
+// 組み立て直す)低速パスにフォールバックし、新しい形式で保存し直される。
+const HASH_INDEX_CACHE_FORMAT_VERSION = 2;
+
+// 次回のページ読み込みを高速化するためのキャッシュを保存する。ライブラリ
+// 構築が完了した直後(または移行完了直後)に呼ぶ。曲ごとの行から毎回
+// hashIndexを組み立て直さずに済むよう、完成済みのhashIndexをまとめて
+// 1レコードとして保存しておく(このキャッシュはあくまで高速化用の複製で
+// あり、真のデータは'songHashes'側にあるため、壊れても'songHashes'から
+// 再構築できる)。
+async function persistHashIndexCache(db, hashIndex, nextId) {
+  try {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put({
+      key: 'hashIndexCache',
+      value: hashIndex,
+      nextIdAtCache: nextId,
+      formatVersion: HASH_INDEX_CACHE_FORMAT_VERSION,
+    });
+    await txDone(tx);
+  } catch (e) {
+    // キャッシュの保存に失敗しても、次回起動時に'songHashes'から再構築される
+    // だけなので致命的ではない。ここでは静かに無視する。
+    console.warn('hashIndexキャッシュの保存に失敗しました(次回起動時に再構築されます)', e);
+  }
+}
+
+// 'songHashes'の全行から、実行時に使う hashIndex (hash -> パック済みの数値、
+// またはその配列。packHashEntry/addHashEntry参照)を組み立て直す。曲数・
+// ハッシュ数が非常に多い(数百万エントリ規模の)大規模ライブラリでもブラウザの
+// メインスレッドを長時間ブロックして「ページが応答しない」状態にならないよう、
+// 一定件数ごとに一旦制御を返す(チャンク処理)。
+async function buildHashIndexFromRows(songHashRows, onProgress) {
+  const hashIndex = new Map();
+  const YIELD_EVERY = 200000; // この件数ごとにブラウザへ制御を返す
+  const totalSongs = songHashRows.length;
+  let sinceYield = 0;
+  let songsDone = 0;
+  for (const row of songHashRows) {
+    const list = row.hashes || [];
+    for (let i = 0; i < list.length; i++) {
+      const entry = list[i];
+      // 新形式(コンパクトな配列 [hash, anchorFrame])・旧形式({hash, anchorFrame})
+      // のどちらでも読めるようにしておく(既に旧形式で保存済みのライブラリを
+      // 持つユーザーが、この修正の後も再構築なしにそのまま使えるようにするため)。
+      const hash = Array.isArray(entry) ? entry[0] : entry.hash;
+      const anchorFrame = Array.isArray(entry) ? entry[1] : entry.anchorFrame;
+      addHashEntry(hashIndex, hash, row.songId, anchorFrame);
+      sinceYield++;
+      if (sinceYield >= YIELD_EVERY) {
+        sinceYield = 0;
+        if (onProgress) { try { onProgress(songsDone, totalSongs); } catch (e) { /* ignore */ } }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+    songsDone++;
+  }
+  if (onProgress) { try { onProgress(songsDone, totalSongs); } catch (e) { /* ignore */ } }
+  return hashIndex;
+}
+
+// onProgressは、大規模ライブラリの読み込みに時間がかかっている間、呼び出し側
+// (UI)で「読み込み中です」といった表示を更新するために使う任意のコールバック。
+async function loadLibrary(db, onProgress) {
+  const songsById = new Map();
+  const songs = await idbGetAll(db, 'songs');
+  for (const s of songs) songsById.set(s.id, s);
+
+  const nextIdRec = await idbGet(db, 'kv', 'nextSongId');
+  const nextId = nextIdRec ? nextIdRec.value : 1;
+
+  // ---- 高速パス ----
+  // 直近のライブラリ構築時に保存したキャッシュがあり、かつそれ以降新しい曲が
+  // 追加されていなければ(nextSongIdが変わっていなければ)、そのまま使う。
+  // 曲ごとの行を1件ずつ読み直して組み立て直す必要がなく、大規模なライブラリ
+  // でも一瞬で読み込める。
+  const cacheRec = await idbGet(db, 'kv', 'hashIndexCache');
+  if (
+    cacheRec && cacheRec.value && cacheRec.nextIdAtCache === nextId
+    && cacheRec.formatVersion === HASH_INDEX_CACHE_FORMAT_VERSION
+  ) {
+    return { songsById, hashIndex: cacheRec.value, nextId };
+  }
+
+  // ---- 低速パス ----
+  // キャッシュが無い/古い場合は、曲ごとのハッシュ行から少しずつ(チャンク単位で)
+  // 組み立て直す。
+  const songHashRows = await idbGetAll(db, 'songHashes');
+  let hashIndex = await buildHashIndexFromRows(songHashRows, onProgress);
+
+  // ---- 旧v1形式からの移行 ----
+  // v1では曲ごとに分けず、ライブラリ全体のハッシュ表を 'kv'/'hashIndex' に
+  // 1レコードでまとめて保存していた。'songHashes' が空でも旧形式のデータが
+  // 残っている場合は、そこから曲ごとのハッシュ一覧を復元して 'songHashes' に
+  // 書き戻し、今後は逐次保存の恩恵を受けられるようにする。
+  if (songHashRows.length === 0) {
+    const legacyRec = await idbGet(db, 'kv', 'hashIndex');
+    const legacyHashIndex = (legacyRec && legacyRec.value) ? legacyRec.value : null;
+    if (legacyHashIndex && legacyHashIndex.size > 0) {
+      const perSong = new Map();
+      // 旧v1形式のhashIndexは Map<hash, Array<[songId, anchorFrame]>> という
+      // 形なので、そのまま新しいhashIndexとして使い回すことはできない
+      // (パック形式ではないため)。'songHashes'への書き戻し用データを作りつつ、
+      // 新しいパック済みhashIndexも同時に組み立て直す。
+      hashIndex = new Map();
+      for (const [hash, entries] of legacyHashIndex.entries()) {
+        for (const [songId, anchorFrame] of entries) {
+          let list = perSong.get(songId);
+          if (!list) { list = []; perSong.set(songId, list); }
+          list.push([hash, anchorFrame]);
+          addHashEntry(hashIndex, hash, songId, anchorFrame);
+        }
+      }
+      const tx = db.transaction(['songHashes', 'kv'], 'readwrite');
+      for (const [songId, list] of perSong.entries()) {
+        tx.objectStore('songHashes').put({ songId, hashes: list });
+      }
+      tx.objectStore('kv').delete('hashIndex'); // 移行完了後は旧レコードを削除
+      await txDone(tx);
+    }
+  }
+
+  // 次回のページ読み込みを高速化するため、組み立てたインデックスをキャッシュ
+  // として保存しておく。
+  await persistHashIndexCache(db, hashIndex, nextId);
+
+  return { songsById, hashIndex, nextId };
+}
+
+async function loadRoots(db) {
+  return idbGetAll(db, 'dirHandles');
+}
+
+async function saveConfig(db, config) {
+  const tx = db.transaction('kv', 'readwrite');
+  tx.objectStore('kv').put({ key: 'config', value: config });
+  await txDone(tx);
+}
+
+async function loadConfig(db) {
+  const rec = await idbGet(db, 'kv', 'config');
+  return rec ? rec.value : null;
+}
+
+async function clearAllData(db) {
+  const tx = db.transaction(['kv', 'songs', 'songHashes', 'dirHandles'], 'readwrite');
+  tx.objectStore('kv').clear();
+  tx.objectStore('songs').clear();
+  tx.objectStore('songHashes').clear();
+  tx.objectStore('dirHandles').clear();
+  await txDone(tx);
+}
+
+// ライブラリ全体をNDJSON(1行1JSON)としてストリーミング書き出しする
+// (デスクトップアプリ版への移行用)。1行目はメタ情報({type:'meta', songCount})、
+// 以降は1曲ごとに{type:'song', ...}を1行ずつ書き込む。'songHashes'を全曲分
+// 一度に読み出してメモリに載せることはせず、曲ごとに1件ずつ読み出して
+// すぐ書き込むため、ライブラリの規模によらずメモリ使用量は一定に保たれる
+// (これはまさにライブラリ読み込み時のOOMクラッシュの原因になった問題を
+// 再発させないための配慮)。動画ファイルの実体はコピーされない
+// (relativePath/rootKey/rootLabelのみを記録し、デスクトップアプリ側で
+// 同じ動画フォルダを選び直してもらう)。
+async function exportLibraryNdjson(db, onProgress) {
+  if (!window.showSaveFilePicker) {
+    throw new Error('このブラウザはファイル保存(showSaveFilePicker)に対応していません。Chrome/Edgeの最新版をお使いください。');
+  }
+  const fileHandle = await window.showSaveFilePicker({
+    suggestedName: 'anisong_library_export.ndjson',
+    types: [{ description: 'NDJSON (Anime Seeker library export)', accept: { 'application/x-ndjson': ['.ndjson'] } }],
+  });
+  const writable = await fileHandle.createWritable();
+  try {
+    const songs = await idbGetAll(db, 'songs');
+    const songCount = songs.length;
+    await writable.write(JSON.stringify({ type: 'meta', songCount, exportedAt: new Date().toISOString() }) + '\n');
+
+    let songsDone = 0;
+    for (const song of songs) {
+      // 曲ごとに1件ずつ読み出す('songHashes'ストア全体をgetAllしない)。
+      const hashRow = await idbGet(db, 'songHashes', song.id);
+      const hashes = (hashRow && hashRow.hashes) || []; // [[hash, anchorFrame], ...] のコンパクト形式のまま
+      const record = {
+        type: 'song',
+        title: song.title,
+        dedupeKey: song.dedupeKey,
+        relativePath: song.relativePath,
+        rootKey: song.rootKey,
+        rootLabel: song.rootLabel,
+        durationSeconds: song.durationSeconds,
+        hashes,
+      };
+      await writable.write(JSON.stringify(record) + '\n');
+      songsDone++;
+      if (onProgress) { try { onProgress(songsDone, songCount); } catch (e) { /* ignore */ } }
+    }
+
+    await writable.close();
+    return { songCount };
+  } catch (e) {
+    try { await writable.close(); } catch (e2) { /* ignore */ }
+    throw e;
+  }
+}
+
+
+/* ==========================================================================
+ * PART 3: 音声デコード・リサンプル
+ * ========================================================================== */
+let _sharedAudioCtx = null;
+function getSharedAudioContext() {
+  if (!_sharedAudioCtx) {
+    _sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _sharedAudioCtx;
+}
+
+async function decodeFileToMono(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const ctx = getSharedAudioContext();
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  const numCh = audioBuffer.numberOfChannels;
+  const length = audioBuffer.length;
+  const mono = new Float32Array(length);
+  for (let ch = 0; ch < numCh; ch++) {
+    const chData = audioBuffer.getChannelData(ch);
+    for (let i = 0; i < length; i++) mono[i] += chData[i] / numCh;
+  }
+  return { mono, sampleRate: audioBuffer.sampleRate };
+}
+
+async function resampleTo(monoFloat32, srcRate, dstRate) {
+  if (srcRate === dstRate) return monoFloat32;
+  const durationSec = monoFloat32.length / srcRate;
+  const dstLength = Math.max(1, Math.ceil(durationSec * dstRate));
+  const offlineCtx = new OfflineAudioContext(1, dstLength, dstRate);
+  const srcBuffer = offlineCtx.createBuffer(1, monoFloat32.length, srcRate);
+  srcBuffer.copyToChannel(monoFloat32, 0);
+  const src = offlineCtx.createBufferSource();
+  src.buffer = srcBuffer;
+  src.connect(offlineCtx.destination);
+  src.start();
+  const rendered = await offlineCtx.startRendering();
+  return rendered.getChannelData(0).slice();
+}
+
+async function decodeAndResampleFile(file, maxDurationSeconds) {
+  const { mono, sampleRate } = await decodeFileToMono(file);
+  let trimmed = mono;
+  if (maxDurationSeconds) {
+    const maxSamples = Math.floor(maxDurationSeconds * sampleRate);
+    if (trimmed.length > maxSamples) trimmed = trimmed.subarray(0, maxSamples);
+  }
+  return resampleTo(trimmed, sampleRate, TARGET_SAMPLE_RATE);
+}
+
+
+/* ==========================================================================
+ * PART 4: フォルダ走査（File System Access API）
+ * ========================================================================== */
+const MEDIA_EXT_RE = /\.(mp4|webm|mkv|m4v)$/i;
+
+async function* walkFiles(dirHandle, path) {
+  path = path || '';
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'file') {
+      if (MEDIA_EXT_RE.test(name)) yield { handle, relativePath: path + name };
+    } else if (handle.kind === 'directory') {
+      yield* walkFiles(handle, path + name + '/');
+    }
+  }
+}
+
+function guessTitle(relativePath) {
+  return relativePath.replace(/\.[^./]+$/, '').replace(/[_\/]/g, ' ').trim();
+}
+
+
+/* ==========================================================================
+ * PART 5: マイク入力キャプチャ
+ * ========================================================================== */
+class MicCapture {
+  constructor() {
+    this.chunks = [];
+    this.totalDuration = 0;
+    this.bufferSeconds = 15;
+    this.stream = null;
+    this.audioCtx = null;
+    this.sourceNode = null;
+    this.processor = null;
+    this.silentGain = null;
+    this.sampleRate = null;
+    // 無音検出用: 直近で「無音でない」と判定された時刻(wallclock秒)。
+    // 音声処理コールバックの中でリアルタイムに更新されるため、tick()の
+    // ポーリング間隔に関係なく即座に無音/非無音の切り替わりを検知できる。
+    this.silenceThresholdRms = 0.01;
+    this.lastLoudWallclock = null;
+  }
+
+  async start(deviceId) {
+    // 音楽認識用途では、通話向けのエコーキャンセル/ノイズ抑制/自動音量調整が
+    // かえって音質を崩し指紋の精度を下げるため、明示的に無効化する。
+    const audioConstraints = {
+      channelCount: 1,
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    if (deviceId) audioConstraints.deviceId = { exact: deviceId };
+    const constraints = { audio: audioConstraints };
+    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    this.sampleRate = this.audioCtx.sampleRate;
+    this.sourceNode = this.audioCtx.createMediaStreamSource(this.stream);
+    this.processor = this.audioCtx.createScriptProcessor(4096, 1, 1);
+    this.silentGain = this.audioCtx.createGain();
+    this.silentGain.gain.value = 0; // マイク音声をスピーカーに戻さない（ハウリング防止）
+
+    this.chunks = [];
+    this.totalDuration = 0;
+    this.lastLoudWallclock = Date.now() / 1000;
+
+    this.processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const copy = new Float32Array(input.length);
+      copy.set(input);
+      const chunkDuration = copy.length / this.audioCtx.sampleRate;
+      const chunkStartWallclock = Date.now() / 1000 - chunkDuration;
+      this.chunks.push({ t: chunkStartWallclock, samples: copy });
+      this.totalDuration += chunkDuration;
+      while (this.totalDuration > this.bufferSeconds && this.chunks.length > 1) {
+        const old = this.chunks.shift();
+        this.totalDuration -= old.samples.length / this.audioCtx.sampleRate;
+      }
+
+      // RMS(実効値)を計算し、しきい値以上ならその時刻を「音がある」時刻として記録する。
+      let sumSq = 0;
+      for (let i = 0; i < copy.length; i++) sumSq += copy[i] * copy[i];
+      const rms = Math.sqrt(sumSq / copy.length);
+      if (rms >= this.silenceThresholdRms) {
+        this.lastLoudWallclock = Date.now() / 1000;
+      }
+    };
+
+    this.sourceNode.connect(this.processor);
+    this.processor.connect(this.silentGain);
+    this.silentGain.connect(this.audioCtx.destination);
+  }
+
+  stop() {
+    if (this.processor) { try { this.processor.disconnect(); } catch (e) {} }
+    if (this.sourceNode) { try { this.sourceNode.disconnect(); } catch (e) {} }
+    if (this.silentGain) { try { this.silentGain.disconnect(); } catch (e) {} }
+    if (this.stream) { for (const track of this.stream.getTracks()) track.stop(); }
+    if (this.audioCtx) { try { this.audioCtx.close(); } catch (e) {} }
+    this.stream = null; this.audioCtx = null; this.sourceNode = null; this.processor = null;
+    this.chunks = []; this.totalDuration = 0;
+    this.lastLoudWallclock = null;
+  }
+
+  // 直近で「無音でない」と判定されてから何秒経過したか。マイク開始直後や
+  // まだ一度も音を検知していない場合は0を返す。
+  getSilenceDurationSeconds() {
+    if (this.lastLoudWallclock === null) return 0;
+    return Math.max(0, Date.now() / 1000 - this.lastLoudWallclock);
+  }
+
+  getRecentAudio(seconds) {
+    if (this.chunks.length === 0) return null;
+    const chunksCopy = this.chunks.slice();
+    const collected = [];
+    let collectedDuration = 0;
+    let startWallclock = null;
+    for (let i = chunksCopy.length - 1; i >= 0; i--) {
+      const c = chunksCopy[i];
+      collected.push(c.samples);
+      collectedDuration += c.samples.length / this.sampleRate;
+      startWallclock = c.t;
+      if (collectedDuration >= seconds) break;
+    }
+    if (collectedDuration < seconds * 0.5) return null;
+    collected.reverse();
+    let total = 0;
+    for (const s of collected) total += s.length;
+    const audio = new Float32Array(total);
+    let offset = 0;
+    for (const s of collected) { audio.set(s, offset); offset += s.length; }
+
+    const maxSamples = Math.floor(seconds * this.sampleRate);
+    let finalAudio = audio;
+    if (audio.length > maxSamples) {
+      const trimmed = audio.length - maxSamples;
+      finalAudio = audio.subarray(trimmed);
+      startWallclock += trimmed / this.sampleRate;
+    }
+    return { samples: finalAudio, wallclockStart: startWallclock, sampleRate: this.sampleRate };
+  }
+}
+
+
+/* ==========================================================================
+ * PART 6: ストリーミング認識（複数回の照合をならして確定判定する）
+ * ========================================================================== */
+class StreamingRecognizer {
+  constructor(hashIndexRef, opts) {
+    this.hashIndexRef = hashIndexRef;
+    this.minConfidence = opts.minConfidence;
+    this.agreementRequired = opts.agreementRequired;
+    this.agreementTolerance = opts.agreementToleranceSeconds;
+    this.history = [];
+    this.historySize = 5;
+    this.locked = null;
+    // 周囲の曲が別の曲に切り替わったことをタイムリーに検知するための、
+    // 短い区間(クイックスキャン)専用の履歴。通常のhistory/agreementRequired
+    // による合議はノイズに強いが確定までに時間がかかるため、既にロック中の
+    // 曲がある状態で「別の曲」が連続して(switchConfirmCount回)検出された
+    // 場合だけ、合議を待たずに即座に切り替える特別ルートとして使う。
+    this.quickHistory = [];
+    this.quickHistorySize = 3;
+    this.switchConfirmCount = 2;
+    // 1回のクイックスキャンだけで即座に切り替えて良いとみなす「圧倒的な
+    // 信頼度」の基準。次点候補をこの倍率以上引き離し、かつ絶対スコアも
+    // 一定以上ある場合だけ即座に切り替える(switchConfirmCountの2回待ちを省略)。
+    // 曲の判定(songId)は短いウィンドウでもスコア差が大きければ十分信頼できる
+    // 一方、厳密な再生位置は多少ずれることがあるが、それは後続の通常照合で
+    // 自然に補正されるため許容する。
+    this.instantSwitchMarginRatio = 3.0;
+    this.instantSwitchMinScore = 10;
+
+    // ---- 通常照合(push()、既定8秒窓・2秒間隔)専用の即時ロック ----
+    // 「照合候補ログ」に出る最有力候補(candidates[0])が、通常の合議
+    // (agreementRequired回の連続一致)を待たずとも十分信頼できると判断できる
+    // 場合に、その場で即座にロック/切り替えを行う。次の2パターンのどちらか。
+    //   (1) 単発でもスコアが instantLockScoreThreshold 以上(既定15)
+    //   (2) 同じ曲が(各回のスコアが最小信頼度スコア以上の状態で)
+    //       instantLockStreakRequired 回(既定3回)連続で最有力候補になった
+    this.instantLockScoreThreshold = 15;
+    this.instantLockStreakRequired = 3;
+    this.topStreakSongId = null;
+    this.topStreakCount = 0;
+  }
+
+  _applySwitch(matchResult) {
+    this.locked = matchResult;
+    // 通常の合議用履歴も新しい曲に合わせてリセットしておくことで、
+    // 直後にhistoryが古い曲に基づいて逆戻りしてしまうのを防ぐ。
+    this.history = [matchResult];
+    this.quickHistory = [];
+  }
+
+  _makeMatchResult(result, queryWallclockStart) {
+    return {
+      songId: result.songId,
+      score: result.score,
+      totalQueryHashes: result.totalQueryHashes,
+      referenceOffsetSeconds: result.referenceOffsetSeconds,
+      queryWallclockStart,
+      referencePositionAt(t) { return this.referenceOffsetSeconds + (t - this.queryWallclockStart); },
+    };
+  }
+
+  push(hashes, queryWallclockStart) {
+    const hashIndex = this.hashIndexRef();
+    const result = matchHashes(hashIndex, hashes, this.minConfidence);
+    let matchResult = null;
+    if (result.matched) {
+      matchResult = this._makeMatchResult(result, queryWallclockStart);
+      this.history.push(matchResult);
+      if (this.history.length > this.historySize) this.history.shift();
+    }
+    // 通常の合議を待たずに済む場合は、ここで即座にロック/切り替えを行う
+    // (対象になった曲は、この直後の_updateLock()でも上書きされない)。
+    this._updateInstantLockStreak(result, queryWallclockStart);
+    const locked = this._updateLock();
+    return { latestMatch: matchResult, lockedMatch: locked, candidates: result.candidates };
+  }
+
+  // 「照合候補ログ」に出る最有力候補(result.candidates[0])を見て、通常の
+  // 合議を待たずに即座にロック/切り替えを行うべきかどうかを判定する。
+  _updateInstantLockStreak(result, queryWallclockStart) {
+    if (!result.candidates.length) {
+      this.topStreakSongId = null;
+      this.topStreakCount = 0;
+      return;
+    }
+    const [topSongId, topScore] = result.candidates[0];
+
+    // (1) 単発でも圧倒的なスコアの場合は、連続確認を待たず即座にロックする。
+    if (topScore >= this.instantLockScoreThreshold) {
+      this._applyInstantLock(topSongId, topScore, result, queryWallclockStart);
+      return;
+    }
+
+    // (2) 同じ曲が(ノイズによる偶然の連続一致を避けるため、各回のスコアが
+    // 最小信頼度スコア以上であることを条件に)指定回数連続で最有力候補で
+    // あり続けた場合も、即座にロックする。
+    if (topScore >= this.minConfidence && topSongId === this.topStreakSongId) {
+      this.topStreakCount++;
+    } else if (topScore >= this.minConfidence) {
+      this.topStreakSongId = topSongId;
+      this.topStreakCount = 1;
+    } else {
+      this.topStreakSongId = null;
+      this.topStreakCount = 0;
+      return;
+    }
+
+    if (this.topStreakCount >= this.instantLockStreakRequired) {
+      this._applyInstantLock(topSongId, topScore, result, queryWallclockStart);
+    }
+  }
+
+  _applyInstantLock(songId, score, result, queryWallclockStart) {
+    this.topStreakSongId = null;
+    this.topStreakCount = 0;
+    if (this.locked && this.locked.songId === songId) return; // 既に同じ曲でロック中なら何もしない
+    const matchResult = this._makeMatchResult(
+      { songId, score, totalQueryHashes: result.totalQueryHashes, referenceOffsetSeconds: result.referenceOffsetSeconds },
+      queryWallclockStart
+    );
+    this._applySwitch(matchResult);
+  }
+
+  // 直近の短い区間だけを使った、曲切り替え検知専用のクイックスキャン。
+  // 戻り値は切り替えが成立した場合のみロック済みマッチを返す(それ以外はnull)。
+  pushQuick(hashes, queryWallclockStart, minConfidence) {
+    const hashIndex = this.hashIndexRef();
+    const threshold = minConfidence != null ? minConfidence : this.minConfidence;
+    const result = matchHashes(hashIndex, hashes, threshold);
+    if (!result.matched) return null;
+    const matchResult = this._makeMatchResult(result, queryWallclockStart);
+
+    // ロック中の曲と異なる曲が、次点候補を大きく(instantSwitchMarginRatio倍以上)
+    // 引き離す圧倒的なスコアで検出された場合は、2回連続の確認を待たずに
+    // その場で即座に切り替える。切り替えの体感速度を上げるための近道。
+    if (this.locked && matchResult.songId !== this.locked.songId) {
+      const runnerUp = result.candidates.find((c) => c[0] !== matchResult.songId);
+      const runnerUpScore = runnerUp ? runnerUp[1] : 0;
+      const dominant = matchResult.score >= this.instantSwitchMinScore
+        && matchResult.score >= runnerUpScore * this.instantSwitchMarginRatio;
+      if (dominant) {
+        this._applySwitch(matchResult);
+        return this.locked;
+      }
+    }
+
+    this.quickHistory.push(matchResult);
+    if (this.quickHistory.length > this.quickHistorySize) this.quickHistory.shift();
+    return this._maybeFastSwitch();
+  }
+
+  _maybeFastSwitch() {
+    if (!this.locked) return null; // まだ何もロックしていない時は通常の合議に任せる
+    if (this.quickHistory.length < this.switchConfirmCount) return null;
+    const tail = this.quickHistory.slice(-this.switchConfirmCount);
+    const candidateSongId = tail[tail.length - 1].songId;
+    if (candidateSongId === this.locked.songId) return null; // 同じ曲なら切り替え不要
+    if (!tail.every((m) => m.songId === candidateSongId)) return null;
+
+    // 推定再生位置にも一貫性があることを確認し、偶然の誤検出を弾く。
+    const now = Date.now() / 1000;
+    const positions = tail.map((m) => m.referencePositionAt(now));
+    const spread = Math.max(...positions) - Math.min(...positions);
+    if (spread > this.agreementTolerance * 2) return null;
+
+    this._applySwitch(tail[tail.length - 1]);
+    return this.locked;
+  }
+
+  _updateLock() {
+    if (this.history.length === 0) { this.locked = null; return null; }
+    const latest = this.history[this.history.length - 1];
+    const now = Date.now() / 1000;
+    const latestPosNow = latest.referencePositionAt(now);
+    let agreeing = 0;
+    for (const past of this.history) {
+      if (past.songId !== latest.songId) continue;
+      const predictedNow = past.referencePositionAt(now);
+      if (Math.abs(predictedNow - latestPosNow) <= this.agreementTolerance) agreeing++;
+    }
+    if (agreeing >= this.agreementRequired) this.locked = latest;
+    return this.locked;
+  }
+
+  reset() {
+    this.history = [];
+    this.locked = null;
+    this.quickHistory = [];
+    this.topStreakSongId = null;
+    this.topStreakCount = 0;
+  }
+}
+
+
+/* ==========================================================================
+ * PART 7: 動画再生・同期
+ * ========================================================================== */
+class VideoPlayer {
+  constructor(videoEl, config) {
+    this.video = videoEl;
+    this.config = config;
+    this.currentSongId = null;
+    this.objectUrls = new Map();
+    this.video.loop = true;
+    this.video.muted = !config.unmuteVideoAudio;
+    this.onSourceChanged = null; // NDI出力用ポップアップなど、動画が切り替わった時に呼びたい処理のフック
+    // 無音検出により画面を黒くする/戻す際に呼びたい処理のフック(NDI出力側の黒画面連動など)
+    this.onBlackoutChanged = null;
+    this.blackedOut = false;
+    // previewVideo は <div class="video-wrap">...<video/><overlay/></div> の
+    // ような構造を想定し、黒画面オーバーレイの表示切り替えに親要素を使う。
+    // 想定した構造でない場合(親が video-wrap を持たない場合)は静かに諦める。
+    this.wrapEl = this.video.parentElement && this.video.parentElement.classList.contains('video-wrap')
+      ? this.video.parentElement
+      : null;
+
+    this.soft = 0.3;
+    this.speedAdjustTolerance = 1.5;
+    this.hardReseekTolerance = 1.5;
+    this.maxSpeedOffset = 0.05;
+    this.speedGain = 0.05;
+  }
+
+  async playSong(songId, fileHandle, startSeconds) {
+    if (this.currentSongId !== songId) {
+      let url = this.objectUrls.get(songId);
+      if (!url) {
+        const file = await fileHandle.getFile();
+        url = URL.createObjectURL(file);
+        this.objectUrls.set(songId, url);
+      }
+      this.video.src = url;
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          this.video.removeEventListener('loadedmetadata', finish);
+          this.video.removeEventListener('error', finish);
+          resolve();
+        };
+        this.video.addEventListener('loadedmetadata', finish);
+        this.video.addEventListener('error', finish);
+        // 万一どちらのイベントも来ない場合に備え、tick()のループを止めない
+        // ようタイムアウトで必ず抜ける。
+        setTimeout(finish, 5000);
+      });
+      this.currentSongId = songId;
+      if (this.onSourceChanged) {
+        try { this.onSourceChanged(); } catch (e) { /* ignore */ }
+      }
+    }
+    this._seekWithWrap(startSeconds);
+    this.video.playbackRate = 1.0;
+    this.video.muted = !this.config.unmuteVideoAudio;
+    try { await this.video.play(); } catch (e) { /* 自動再生がブロックされた場合はUIで案内 */ }
+  }
+
+  _seekWithWrap(seconds) {
+    let target = Math.max(0, seconds);
+    const dur = this.video.duration;
+    if (dur && isFinite(dur) && dur > 0) target = target % dur;
+    this.video.currentTime = target;
+  }
+
+  syncTo(targetSeconds) {
+    if (this.currentSongId === null) return;
+    const current = this.video.currentTime;
+    let target = targetSeconds;
+    const dur = this.video.duration;
+    if (dur && isFinite(dur) && dur > 0) target = target % dur;
+
+    let drift = target - current;
+    // ループ境界をまたぐ場合の誤差を正しく評価する
+    if (dur && isFinite(dur) && dur > 0) {
+      if (drift > dur / 2) drift -= dur;
+      if (drift < -dur / 2) drift += dur;
+    }
+
+    if (Math.abs(drift) > this.hardReseekTolerance) {
+      this._seekWithWrap(targetSeconds);
+      this.video.playbackRate = 1.0;
+      return;
+    }
+    if (Math.abs(drift) <= this.soft) {
+      this.video.playbackRate = 1.0;
+      return;
+    }
+    if (Math.abs(drift) <= this.speedAdjustTolerance) {
+      const adj = Math.max(-this.maxSpeedOffset, Math.min(this.maxSpeedOffset, drift * this.speedGain));
+      this.video.playbackRate = 1.0 + adj;
+    }
+  }
+
+  pause() { this.video.pause(); }
+
+  stop() {
+    this.video.pause();
+    this.currentSongId = null;
+  }
+
+  // 無音が一定時間続いた際に画面を黒一色にする(flag=true)/元に戻す(flag=false)。
+  setBlackout(flag) {
+    if (this.blackedOut === flag) return;
+    this.blackedOut = flag;
+    if (this.wrapEl) this.wrapEl.classList.toggle('blackout', flag);
+    if (flag) {
+      try { this.video.pause(); } catch (e) { /* ignore */ }
+    } else if (this.currentSongId !== null) {
+      try { this.video.play(); } catch (e) { /* 自動再生ブロック等は無視 */ }
+    }
+    if (this.onBlackoutChanged) {
+      try { this.onBlackoutChanged(flag); } catch (e) { /* ignore */ }
+    }
+  }
+}
+
+
+/* ==========================================================================
+ * PART 8: メインの認識・再生ループ
+ * ========================================================================== */
+class RecognitionApp {
+  // mic は外部(呼び出し側のUI配線)で生成・起動済みの MicCapture インスタンスを
+  // 渡す。このクラス自身はマイクを起動・停止しない(マイクの起動・停止は
+  // 呼び出し側が管理する)。
+  constructor({ songsById, hashIndexRef, config, videoEl, onStatus, mic }) {
+    this.songsById = songsById;
+    this.config = config;
+    this.onStatus = onStatus;
+    this.mic = mic;
+    this.recognizer = new StreamingRecognizer(hashIndexRef, config);
+    this.player = new VideoPlayer(videoEl, config);
+    this.timer = null;
+    this.busy = false;
+    this.lastMatchedWallclock = 0;
+    this.noMatchGraceSeconds = 6;
+    this.running = false;
+    // 曲切り替え検知専用のクイックスキャンは、精度重視の通常照合(pollIntervalSeconds、
+    // 既定2秒)より短い間隔で独立して回すことで、切り替えの体感速度を上げる。
+    this.quickTimer = null;
+    this.quickBusy = false;
+    this.quickPollIntervalSeconds = config.quickPollIntervalSeconds || 1;
+    // 無音が何秒続いたら画面を黒くするか(既定10秒。設定タブで変更可能)
+    this.silenceBlackoutSeconds = config.silenceBlackoutSeconds || 10;
+    // true の間は無音検出による自動の黒画面判定を無視し、手動での黒画面状態を維持する
+    this.manualBlackout = false;
+  }
+
+  start() {
+    this.running = true;
+    this.timer = setInterval(() => this.tick(), this.config.pollIntervalSeconds * 1000);
+    this.quickTimer = setInterval(() => this.quickTick(), this.quickPollIntervalSeconds * 1000);
+  }
+
+  // 「起動前の未解析状態」に戻す。「■ 停止」ボタンを押した時に呼ばれる。
+  // マイク自体はここでは止めない(呼び出し側が管理する)。
+  stop() {
+    this.running = false;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    if (this.quickTimer) clearInterval(this.quickTimer);
+    this.quickTimer = null;
+    this.player.stop();
+    this.recognizer.reset();
+    this.manualBlackout = false;
+    if (this.player.blackedOut) this.player.setBlackout(false);
+    this.lastMatchedWallclock = 0;
+  }
+
+  async tick() {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      // ---- 無音検出（10秒など一定時間続いたら黒画面にする） ----
+      // マイクの音声処理コールバック側でリアルタイムに更新されているため、
+      // ポーリング間隔(pollIntervalSeconds)に関係なく最新の無音継続時間を取得できる。
+      // ただし「手動で黒画面」が有効な間は自動判定を無視する。
+      const silenceSeconds = this.mic.getSilenceDurationSeconds();
+      if (!this.manualBlackout) {
+        const shouldBlackout = silenceSeconds >= this.silenceBlackoutSeconds;
+        if (shouldBlackout !== this.player.blackedOut) {
+          this.player.setBlackout(shouldBlackout);
+        }
+      }
+
+      const buf = this.mic.getRecentAudio(this.config.queryWindowSeconds);
+      if (!buf) {
+        this.onStatus({ running: true, silenceSeconds, blackout: this.player.blackedOut });
+        return;
+      }
+      const resampled = await resampleTo(buf.samples, buf.sampleRate, TARGET_SAMPLE_RATE);
+      const hashes = fingerprintSamples(resampled);
+      const state = this.recognizer.push(hashes, buf.wallclockStart);
+
+      const lockedMatch = state.lockedMatch;
+      const candLines = state.candidates.map(([id, score]) => {
+        const s = this.songsById.get(id);
+        return `song_id=${id} (${s ? s.title : '?'})  score=${score}`;
+      });
+
+      if (lockedMatch) {
+        this.lastMatchedWallclock = Date.now() / 1000;
+        const song = this.songsById.get(lockedMatch.songId);
+        const videoPos = lockedMatch.referencePositionAt(Date.now() / 1000);
+        this.onStatus({
+          running: true, locked: true, title: song ? song.title : null, score: lockedMatch.score,
+          videoPos, candidates: candLines, error: null, silenceSeconds, blackout: this.player.blackedOut,
+        });
+        if (song && song.fileHandle) {
+          if (this.player.currentSongId !== song.id) {
+            await this.player.playSong(song.id, song.fileHandle, videoPos);
+          } else {
+            this.player.syncTo(videoPos);
+          }
+        }
+      } else {
+        this.onStatus({ running: true, locked: false, candidates: candLines, silenceSeconds, blackout: this.player.blackedOut });
+        if (this.player.currentSongId !== null && (Date.now() / 1000 - this.lastMatchedWallclock) > this.noMatchGraceSeconds) {
+          this.player.pause();
+        }
+      }
+    } catch (err) {
+      this.onStatus({ running: true, error: (err && err.message) ? err.message : String(err) });
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ---- 曲切り替えのタイムリーな検知（クイックスキャン） ----
+  // 通常の照合(tick()、queryWindowSeconds=既定8秒・pollIntervalSeconds=既定2秒)は
+  // 精度重視で間隔も長いが、曲が切り替わった直後は新旧の曲の音声が混ざった区間を
+  // 含んでしまい反映が遅れがちになる。そこで直近の短い区間(quickWindowSeconds、
+  // 既定3秒)だけを、より短い間隔(quickPollIntervalSeconds、既定1秒)で独立に
+  // 解析し、既にロック中の曲と異なる曲が検出された場合は通常の合議を待たずに
+  // 素早く切り替える。tick()とは別タイマー・別busyフラグで動くため、互いを
+  // 待たせない。
+  async quickTick() {
+    if (this.quickBusy) return;
+    if (!this.recognizer.locked) return; // まだ何もロックしていない間は通常の合議に任せる
+    this.quickBusy = true;
+    try {
+      const quickWindowSeconds = Math.min(this.config.quickWindowSeconds || 3, this.config.queryWindowSeconds);
+      const buf = this.mic.getRecentAudio(quickWindowSeconds);
+      if (!buf) return;
+      const resampled = await resampleTo(buf.samples, buf.sampleRate, TARGET_SAMPLE_RATE);
+      const quickHashes = fingerprintSamples(resampled);
+      // ウィンドウが短い分だけハッシュ数も比例して少なくなるため、
+      // 最小信頼度スコアもウィンドウ長の比率でスケールダウンする。
+      const quickMinConfidence = Math.max(
+        4,
+        Math.round(this.config.minConfidence * (quickWindowSeconds / this.config.queryWindowSeconds))
+      );
+      const fastSwitch = this.recognizer.pushQuick(quickHashes, buf.wallclockStart, quickMinConfidence);
+      if (!fastSwitch) return;
+
+      this.lastMatchedWallclock = Date.now() / 1000;
+      if (this.player.blackedOut && !this.manualBlackout) this.player.setBlackout(false);
+      const song = this.songsById.get(fastSwitch.songId);
+      const videoPos = fastSwitch.referencePositionAt(Date.now() / 1000);
+      if (song && song.fileHandle) {
+        if (this.player.currentSongId !== song.id) {
+          await this.player.playSong(song.id, song.fileHandle, videoPos);
+        } else {
+          this.player.syncTo(videoPos);
+        }
+      }
+      this.onStatus({
+        running: true, locked: true, title: song ? song.title : null, score: fastSwitch.score,
+        videoPos, error: null, blackout: this.player.blackedOut,
+      });
+    } catch (err) {
+      // クイックスキャンのエラーで通常の認識ループを止めたくないため、ここでは
+      // ログのみに留める(通常のtick()側で同種のエラーが起きれば画面にも表示される)。
+      console.error('クイックスキャン中にエラーが発生しました', err);
+    } finally {
+      this.quickBusy = false;
+    }
+  }
+
+  // 「手動で現在の音を再読み込み」ボタン用。ポーリング間隔や、通常の合議
+  // (agreementRequired)・クイックスキャンの連続確認回数を一切待たず、今
+  // バッファされている直近の音声から即座に曲を判定して反映する。ユーザーが
+  // 明示的に押した操作なので、通常より踏み込んで即座に確定させて良い。
+  async forceRecheck() {
+    if (!this.running) return { ok: false, reason: 'not-running' };
+    const buf = this.mic.getRecentAudio(this.config.queryWindowSeconds);
+    if (!buf) return { ok: false, reason: 'no-audio' };
+    const resampled = await resampleTo(buf.samples, buf.sampleRate, TARGET_SAMPLE_RATE);
+    const hashes = fingerprintSamples(resampled);
+    const hashIndex = this.recognizer.hashIndexRef();
+    const result = matchHashes(hashIndex, hashes, this.config.minConfidence);
+    if (!result.matched) return { ok: false, reason: 'no-match' };
+
+    const matchResult = this.recognizer._makeMatchResult(result, buf.wallclockStart);
+    // 通常の合議・クイックスキャンの履歴をこのマッチで上書きし、直ちに確定させる。
+    this.recognizer.locked = matchResult;
+    this.recognizer.history = [matchResult];
+    this.recognizer.quickHistory = [];
+    this.lastMatchedWallclock = Date.now() / 1000;
+
+    // 無音判定による自動の黒画面はここで解除する(手動黒画面は維持する)。
+    if (this.player.blackedOut && !this.manualBlackout) this.player.setBlackout(false);
+
+    const song = this.songsById.get(matchResult.songId);
+    const videoPos = matchResult.referencePositionAt(Date.now() / 1000);
+    if (song && song.fileHandle) {
+      await this.player.playSong(song.id, song.fileHandle, videoPos);
+    }
+    this.onStatus({
+      running: true, locked: true, title: song ? song.title : null, score: matchResult.score,
+      videoPos, error: null, blackout: this.player.blackedOut,
+    });
+    return { ok: true, songId: matchResult.songId, title: song ? song.title : null };
+  }
+
+  // 「手動で黒画面」ボタン用。flag=trueで無音検出の結果に関わらず黒画面を維持し、
+  // flag=falseで自動判定(無音検出)に制御を戻す。
+  setManualBlackout(flag) {
+    this.manualBlackout = flag;
+    if (flag) {
+      this.player.setBlackout(true);
+    } else {
+      const silenceSeconds = this.mic.getSilenceDurationSeconds();
+      this.player.setBlackout(silenceSeconds >= this.silenceBlackoutSeconds);
+    }
+  }
+}
+
+
+/* ==========================================================================
+ * PART 9: UI配線
+ * ========================================================================== */
+(function () {
+  const state = {
+    db: null,
+    roots: [],           // [{key, handle, label}]
+    songsById: new Map(),
+    hashIndex: new Map(),
+    nextSongId: 1,
+    config: {
+      micDeviceId: null,
+      queryWindowSeconds: 8,
+      pollIntervalSeconds: 2,
+      minConfidence: 8,
+      agreementRequired: 2,
+      agreementToleranceSeconds: 1.5,
+      quickWindowSeconds: 3,
+      quickPollIntervalSeconds: 1,
+      silenceRmsThreshold: 0.01,
+      silenceBlackoutSeconds: 10,
+      unmuteVideoAudio: false,
+    },
+    app: null,
+    mic: null,
+    buildStopFlag: false,
+  };
+
+  // ---- ブラウザ対応チェック ----
+  function checkBrowserSupport() {
+    const badge = document.getElementById('browserSupportBadge');
+    const missing = [];
+    if (!window.showDirectoryPicker) missing.push('フォルダ選択(File System Access API)');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) missing.push('マイク(getUserMedia)');
+    if (!window.indexedDB) missing.push('IndexedDB');
+    if (missing.length) {
+      badge.textContent = '⚠ 非対応の機能: ' + missing.join(' / ') + '（Chrome/Edgeでの利用を推奨します）';
+      badge.style.color = 'var(--danger)';
+    } else {
+      badge.textContent = '✓ このブラウザは必要な機能に対応しています';
+      badge.style.color = 'var(--accent-2)';
+    }
+  }
+
+  // ---- タブ切り替え ----
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  function log(elId, message) {
+    const el = document.getElementById(elId);
+    el.textContent += message + '\n';
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ---- ライブラリ: フォルダ管理 ----
+  function renderRootsList() {
+    const ul = document.getElementById('rootsList');
+    ul.innerHTML = '';
+    if (state.roots.length === 0) {
+      ul.innerHTML = '<li style="color:var(--text-dim);">まだフォルダが追加されていません</li>';
+      return;
+    }
+    for (const root of state.roots) {
+      const li = document.createElement('li');
+      const isBrokenLabel = !root.label || root.label === '/' || root.label === '\\';
+      const left = document.createElement('span');
+      if (isBrokenLabel) {
+        left.textContent = '⚠ 認識できないフォルダ（ドライブ直下を選んだ可能性があります。削除して中のサブフォルダを選び直してください）';
+        left.style.color = 'var(--danger)';
+      } else {
+        left.textContent = root.label;
+      }
+      const right = document.createElement('span');
+      right.innerHTML = '<span class="perm-badge unknown">権限未確認</span>';
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn secondary';
+      delBtn.textContent = '削除';
+      delBtn.style.marginLeft = '8px';
+      delBtn.addEventListener('click', async () => {
+        state.roots = state.roots.filter((r) => r.key !== root.key);
+        await persistRoots(state.db, state.roots);
+        renderRootsList();
+      });
+      right.appendChild(delBtn);
+      li.appendChild(left);
+      li.appendChild(right);
+      ul.appendChild(li);
+
+      root.handle.queryPermission({ mode: 'read' }).then((perm) => {
+        const badge = right.querySelector('.perm-badge');
+        if (perm === 'granted') { badge.textContent = '許可済み'; badge.className = 'perm-badge granted'; }
+        else { badge.textContent = '要許可'; badge.className = 'perm-badge unknown'; }
+      }).catch(() => {});
+    }
+  }
+
+  document.getElementById('addRootBtn').addEventListener('click', async () => {
+    try {
+      const handle = await window.showDirectoryPicker();
+
+      // ブラウザの仕様上、ドライブの一番上の階層(例: E:\ そのもの)を選ぶと
+      // handle.name が空文字や "/" のようになり、実際には中身を正しく
+      // 読み取れないことがある(Chromiumの既知の制限。ドライブ直下には
+      // 「フォルダ名」という概念が無いために起きる)。この状態のまま追加
+      // しても解析対象が0件になってしまうため、ここで検出して弾く。
+      if (!handle.name || handle.name === '/' || handle.name === '\\') {
+        alert(
+          'ドライブの一番上の階層（ドライブ直下）は、ブラウザの制限により正しく' +
+          '読み取れないことがあります。\n\n' +
+          'お手数ですが、そのドライブの中にフォルダを1つ作る（例: 「動画」や' +
+          '「Anime」）か、既存のサブフォルダを選んでから、もう一度' +
+          '「＋ フォルダを追加」をお試しください。'
+        );
+        return;
+      }
+
+      const key = 'root_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      state.roots.push({ key, handle, label: handle.name });
+      await persistRoots(state.db, state.roots);
+      renderRootsList();
+    } catch (e) {
+      if (e && e.name !== 'AbortError') alert('フォルダの選択に失敗しました: ' + e.message);
+    }
+  });
+
+  document.getElementById('reloadRootsBtn').addEventListener('click', async () => {
+    for (const root of state.roots) {
+      try {
+        let perm = await root.handle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') perm = await root.handle.requestPermission({ mode: 'read' });
+      } catch (e) { /* ignore */ }
+    }
+    renderRootsList();
+  });
+
+  // ---- ライブラリ構築 ----
+  document.getElementById('buildBtn').addEventListener('click', async () => {
+    if (state.roots.length === 0) { alert('先に「フォルダを追加」してください。'); return; }
+    const buildBtn = document.getElementById('buildBtn');
+    const stopBtn = document.getElementById('buildStopBtn');
+    buildBtn.disabled = true;
+    stopBtn.disabled = false;
+    stopBtn.textContent = '中断';
+    state.buildStopFlag = false;
+    document.getElementById('buildLog').textContent = '';
+
+    const maxDurRaw = document.getElementById('maxDurationInput').value;
+    const maxDuration = maxDurRaw ? parseFloat(maxDurRaw) : null;
+
+    const dedupeKeys = new Set(Array.from(state.songsById.values()).map((s) => s.dedupeKey));
+    let okCount = 0, skipCount = 0, failCount = 0;
+
+    // 途中で例外が起きても(想定外のエラー・権限エラー等)、ボタンの状態が
+    // 「中断中...」等のまま固まってしまわないよう、全体をtry/finallyで囲む。
+    try {
+      for (const root of state.roots) {
+        let perm = await root.handle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') perm = await root.handle.requestPermission({ mode: 'read' });
+        if (perm !== 'granted') { log('buildLog', `[警告] ${root.label} へのアクセスが許可されませんでした`); continue; }
+
+        for await (const { handle, relativePath } of walkFiles(root.handle)) {
+          if (state.buildStopFlag) { log('buildLog', '⏹ 中断しました（ここまでの内容を保存します）。'); break; }
+          const dedupeKey = root.key + '::' + relativePath;
+          if (dedupeKeys.has(dedupeKey)) { skipCount++; log('buildLog', `スキップ（登録済み）: ${relativePath}`); continue; }
+
+          log('buildLog', `解析中: ${relativePath} ...`);
+          try {
+            const file = await handle.getFile();
+            // ファイル1つあたりの処理(デコード・指紋生成)は途中で中断できないため、
+            // 各awaitの直後にも中断フラグを確認し、次の重い処理に進む前になるべく
+            // 早く抜けられるようにする。
+            if (state.buildStopFlag) { log('buildLog', '⏹ 中断しました（ここまでの内容を保存します）。'); break; }
+            const resampled = await decodeAndResampleFile(file, maxDuration);
+            if (state.buildStopFlag) { log('buildLog', '⏹ 中断しました（ここまでの内容を保存します）。'); break; }
+            if (!resampled || resampled.length === 0) { log('buildLog', '  -> 音声データが空でした'); failCount++; continue; }
+            const hashes = fingerprintSamples(resampled);
+            if (!hashes.length) { log('buildLog', '  -> 指紋を生成できませんでした'); failCount++; continue; }
+
+            const id = state.nextSongId++;
+            const title = guessTitle(relativePath);
+            const durationSeconds = resampled.length / TARGET_SAMPLE_RATE;
+            const songRecord = { id, title, dedupeKey, relativePath, rootKey: root.key, rootLabel: root.label, fileHandle: handle, durationSeconds };
+            state.songsById.set(id, songRecord);
+            dedupeKeys.add(dedupeKey);
+            for (const h of hashes) {
+              addHashEntry(state.hashIndex, h.hash, id, h.anchorFrame);
+            }
+            // 1曲登録するごとに、その曲の分だけを即座にディスクへ保存する。
+            // (ライブラリ全体を毎回書き直すわけではないので、曲数が増えても
+            // 保存1回あたりのコストは変わらず軽いまま)
+            await persistSongIncremental(state.db, songRecord, hashes, state.nextSongId);
+            okCount++;
+            log('buildLog', `  -> 登録完了・保存済み (ハッシュ数=${hashes.length})`);
+            updateLibSummary();
+          } catch (err) {
+            failCount++;
+            log('buildLog', `  -> エラー: ${(err && err.message) || err}`);
+          }
+        }
+        if (state.buildStopFlag) break;
+      }
+
+      log('buildLog', `完了: 新規登録=${okCount}, スキップ=${skipCount}, 失敗=${failCount}`);
+    } catch (err) {
+      log('buildLog', `[エラー] ライブラリ構築が予期せず停止しました: ${(err && err.message) || err}`);
+    } finally {
+      // 次回このページを開いた時に曲ごとの行から読み込み直さずに済むよう、
+      // ここまでに確定した内容でキャッシュを更新しておく(曲数が多いライブラリ
+      // ほど、次回起動時の読み込み速度に効いてくる)。
+      try { await persistHashIndexCache(state.db, state.hashIndex, state.nextSongId); } catch (e) { /* ignore */ }
+      updateLibSummary();
+      buildBtn.disabled = false;
+      stopBtn.disabled = true;
+      stopBtn.textContent = '中断';
+    }
+  });
+
+  document.getElementById('buildStopBtn').addEventListener('click', () => {
+    if (state.buildStopFlag) return; // 既に中断リクエスト済み(連打防止)
+    state.buildStopFlag = true;
+    const stopBtn = document.getElementById('buildStopBtn');
+    stopBtn.disabled = true;
+    stopBtn.textContent = '中断中...';
+    // ボタンを押した直後にすぐログへ反映し、クリックが確実に効いたことを
+    // その場で分かるようにする(実際に処理が止まるのは、処理中のファイルの
+    // デコード等が区切りの良いところまで進んでから)。
+    log('buildLog', '⏸ 中断をリクエストしました。処理中のファイルの解析が一段落し次第、停止します。');
+  });
+
+  function updateLibSummary() {
+    document.getElementById('libSummary').textContent = `登録曲数: ${state.songsById.size}`;
+  }
+
+  // ---- 設定 ----
+  function loadConfigIntoForm() {
+    document.getElementById('cfgQueryWindow').value = state.config.queryWindowSeconds;
+    document.getElementById('cfgPollInterval').value = state.config.pollIntervalSeconds;
+    document.getElementById('cfgMinConfidence').value = state.config.minConfidence;
+    document.getElementById('cfgAgreementRequired').value = state.config.agreementRequired;
+    document.getElementById('cfgQuickWindow').value = state.config.quickWindowSeconds;
+    document.getElementById('cfgQuickPollInterval').value = state.config.quickPollIntervalSeconds;
+    document.getElementById('cfgSilenceThreshold').value = state.config.silenceRmsThreshold;
+    document.getElementById('cfgSilenceSeconds').value = state.config.silenceBlackoutSeconds;
+    document.getElementById('cfgUnmute').checked = state.config.unmuteVideoAudio;
+  }
+
+  async function refreshMicList() {
+    try {
+      // ラベルを得るには一度マイク許可が必要な場合がある
+      const tmpStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tmpStream.getTracks().forEach((t) => t.stop());
+    } catch (e) { /* 許可が得られなくても一覧取得は試みる */ }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const select = document.getElementById('micSelect');
+    select.innerHTML = '<option value="">(既定のマイク)</option>';
+    devices.filter((d) => d.kind === 'audioinput').forEach((d) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `マイク (${d.deviceId.slice(0, 8)})`;
+      select.appendChild(opt);
+    });
+    if (state.config.micDeviceId) select.value = state.config.micDeviceId;
+  }
+
+  document.getElementById('refreshMicBtn').addEventListener('click', refreshMicList);
+
+  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    state.config.queryWindowSeconds = parseFloat(document.getElementById('cfgQueryWindow').value) || 8;
+    state.config.pollIntervalSeconds = parseFloat(document.getElementById('cfgPollInterval').value) || 2;
+    state.config.minConfidence = parseInt(document.getElementById('cfgMinConfidence').value, 10) || 8;
+    state.config.agreementRequired = parseInt(document.getElementById('cfgAgreementRequired').value, 10) || 2;
+    state.config.quickWindowSeconds = parseFloat(document.getElementById('cfgQuickWindow').value) || 3;
+    state.config.quickPollIntervalSeconds = parseFloat(document.getElementById('cfgQuickPollInterval').value) || 1;
+    state.config.silenceRmsThreshold = parseFloat(document.getElementById('cfgSilenceThreshold').value);
+    if (!(state.config.silenceRmsThreshold >= 0)) state.config.silenceRmsThreshold = 0.01;
+    state.config.silenceBlackoutSeconds = parseFloat(document.getElementById('cfgSilenceSeconds').value) || 10;
+    state.config.unmuteVideoAudio = document.getElementById('cfgUnmute').checked;
+    state.config.micDeviceId = document.getElementById('micSelect').value || null;
+    await saveConfig(state.db, state.config);
+    // 実行中であれば、無音しきい値・切り替え検知間隔などをその場で反映する。
+    if (state.mic) {
+      state.mic.silenceThresholdRms = state.config.silenceRmsThreshold;
+    }
+    if (state.app) {
+      state.app.silenceBlackoutSeconds = state.config.silenceBlackoutSeconds;
+      if (state.app.quickPollIntervalSeconds !== state.config.quickPollIntervalSeconds) {
+        state.app.quickPollIntervalSeconds = state.config.quickPollIntervalSeconds;
+        if (state.app.quickTimer) clearInterval(state.app.quickTimer);
+        state.app.quickTimer = setInterval(() => state.app.quickTick(), state.app.quickPollIntervalSeconds * 1000);
+      }
+    }
+    alert('設定を保存しました。');
+  });
+
+  document.getElementById('clearAllBtn').addEventListener('click', async () => {
+    if (!confirm('保存されたライブラリ・フォルダ・設定をすべて削除します。よろしいですか？')) return;
+    await clearAllData(state.db);
+    location.reload();
+  });
+
+  document.getElementById('exportLibraryBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('exportLibraryBtn');
+    const logEl = document.getElementById('exportLog');
+    logEl.textContent = '';
+    if (state.songsById.size === 0) {
+      alert('エクスポートする曲がありません。先にライブラリを構築してください。');
+      return;
+    }
+    btn.disabled = true;
+    try {
+      log('exportLog', `エクスポートを開始します（対象: ${state.songsById.size}曲）。保存先を選択してください...`);
+      const result = await exportLibraryNdjson(state.db, (songsDone, songCount) => {
+        // ログを埋め尽くさないよう、進捗は一定間隔でだけ表示する。
+        if (songsDone === songCount || songsDone % 100 === 0) {
+          log('exportLog', `書き出し中... ${songsDone} / ${songCount} 曲`);
+        }
+      });
+      log('exportLog', `完了しました（${result.songCount}曲）。このファイルをデスクトップアプリ版の「ライブラリをインポート」機能で読み込んでください。`);
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        log('exportLog', '保存先の選択がキャンセルされました。');
+      } else {
+        log('exportLog', `エクスポートに失敗しました: ${(e && e.message) || e}`);
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---- 認識・再生 ----
+  const videoEl = document.getElementById('previewVideo');
+  videoEl.addEventListener('error', () => {
+    document.getElementById('stError').textContent = '動画の再生に失敗しました（このブラウザが対応していないコーデックの可能性があります）';
+  });
+
+  function renderStatus(s) {
+    if (s.running !== undefined) document.getElementById('stRunning').textContent = s.running ? '実行中' : '停止中';
+    if (s.title !== undefined) document.getElementById('stTitle').textContent = s.title || '-';
+    if (s.score !== undefined) document.getElementById('stScore').textContent = s.locked ? String(s.score) : '- (未確定)';
+    if (s.videoPos !== undefined) document.getElementById('stPos').textContent = s.videoPos != null ? s.videoPos.toFixed(1) + ' 秒' : '-';
+    if (s.error !== undefined) document.getElementById('stError').textContent = s.error || '-';
+    if (s.candidates) document.getElementById('candidatesLog').textContent = s.candidates.join('\n');
+    if (s.silenceSeconds !== undefined) {
+      const el = document.getElementById('stSilence');
+      if (s.silenceSeconds == null) {
+        el.textContent = '-';
+        el.className = 'value';
+      } else if (s.blackout) {
+        el.textContent = `⚫ 無音 ${s.silenceSeconds.toFixed(1)}秒（黒画面）`;
+        el.className = 'value err';
+      } else {
+        el.textContent = s.silenceSeconds < 0.5 ? '音あり' : `無音 ${s.silenceSeconds.toFixed(1)}秒`;
+        el.className = 'value';
+      }
+    }
+  }
+
+  document.getElementById('startBtn').addEventListener('click', async () => {
+    if (state.songsById.size === 0) {
+      alert('先に右側の「ライブラリ」欄でフォルダを追加し、ライブラリを構築してください。');
+      return;
+    }
+
+    // ブラウザ/PCを再起動した後などは、フォルダへの読み取り許可が失効している
+    // ことがある（ブラウザのセキュリティ仕様によるもので、こちらでは回避でき
+    // ない）。ライブラリを作り直す必要はなく、ここで許可を再確認するだけで
+    // よい。「▶ 開始」のクリック自体がユーザー操作として扱われるため、
+    // 許可ダイアログが出ても続けてここで確認できる。
+    for (const root of state.roots) {
+      try {
+        let perm = await root.handle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') perm = await root.handle.requestPermission({ mode: 'read' });
+        if (perm !== 'granted') {
+          alert(`フォルダ「${root.label}」へのアクセスが許可されませんでした。動画の再生ができない場合があります。`);
+        }
+      } catch (e) { /* ハンドルが無効化されている等。エラー時は再生時に個別に表面化する */ }
+    }
+    renderRootsList();
+
+    try {
+      const mic = new MicCapture();
+      mic.silenceThresholdRms = state.config.silenceRmsThreshold;
+      await mic.start(state.config.micDeviceId || undefined);
+      state.mic = mic;
+
+      state.app = new RecognitionApp({
+        songsById: state.songsById,
+        hashIndexRef: () => state.hashIndex,
+        config: state.config,
+        videoEl,
+        onStatus: renderStatus,
+        mic,
+      });
+      state.app.start();
+      state.app.player.onSourceChanged = refreshNdiPopupStream;
+      state.app.player.onBlackoutChanged = setNdiPopupBlackout;
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      document.getElementById('manualRecheckBtn').disabled = false;
+      document.getElementById('manualBlackoutBtn').disabled = false;
+      renderStatus({ running: true, error: null });
+    } catch (e) {
+      if (state.mic) { state.mic.stop(); state.mic = null; }
+      state.app = null;
+      alert('開始できませんでした: ' + ((e && e.message) || e));
+    }
+  });
+
+  document.getElementById('stopBtn').addEventListener('click', () => {
+    if (state.app) { state.app.stop(); state.app = null; }
+    if (state.mic) { state.mic.stop(); state.mic = null; }
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+    document.getElementById('manualRecheckBtn').disabled = true;
+    document.getElementById('manualBlackoutBtn').disabled = true;
+    setManualBlackoutBtnLabel(false);
+    renderStatus({ running: false, title: '-', score: '-', videoPos: null, error: null, locked: false, silenceSeconds: null });
+    setNdiPopupBlackout(false);
+  });
+
+  document.getElementById('fullscreenBtn').addEventListener('click', () => {
+    if (videoEl.requestFullscreen) videoEl.requestFullscreen();
+    else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+  });
+
+  // ---- 手動操作: 現在の音を再読み込み / 手動で黒画面 ----
+  document.getElementById('manualRecheckBtn').addEventListener('click', async () => {
+    if (!state.app) return;
+    const btn = document.getElementById('manualRecheckBtn');
+    btn.disabled = true;
+    try {
+      const result = await state.app.forceRecheck();
+      if (!result.ok) {
+        const reasonText = {
+          'not-running': '認識が開始されていません。',
+          'no-audio': 'マイクの音声がまだ十分に集まっていません。少し待ってから再度お試しください。',
+          'no-match': '今聞こえている音と一致する曲が見つかりませんでした。',
+        }[result.reason] || '再読み込みに失敗しました。';
+        alert(reasonText);
+      }
+    } catch (e) {
+      alert('再読み込み中にエラーが発生しました: ' + ((e && e.message) || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function setManualBlackoutBtnLabel(flag) {
+    const btn = document.getElementById('manualBlackoutBtn');
+    if (flag) {
+      btn.textContent = '⚫ 黒画面を解除（自動判定に戻す）';
+      btn.classList.remove('secondary');
+    } else {
+      btn.textContent = '⚫ 手動で黒画面にする';
+      btn.classList.add('secondary');
+    }
+  }
+
+  document.getElementById('manualBlackoutBtn').addEventListener('click', () => {
+    if (!state.app) return;
+    const next = !state.app.manualBlackout;
+    state.app.setManualBlackout(next);
+    setManualBlackoutBtnLabel(next);
+  });
+
+  // ---- NDI出力用ポップアップウィンドウ ----
+  // ブラウザからNDIを直接送信することはできないため、映像だけを映した別
+  // ウィンドウを開き、それを NDI Screen Capture 等の外部ツールでキャプチャ
+  // してもらうための橋渡し。videoEl.captureStream() でメインのプレビュー
+  // 映像をそのままミラーリングするので、二重デコードは発生しない。
+  let ndiPopup = null;
+  let ndiPopupVideo = null;
+  let ndiPopupOverlay = null;
+
+  function refreshNdiPopupStream() {
+    if (!ndiPopup || ndiPopup.closed || !ndiPopupVideo) return;
+    try {
+      const captureFn = videoEl.captureStream || videoEl.mozCaptureStream;
+      if (!captureFn) {
+        ndiPopup.document.body.textContent = 'このブラウザは captureStream() に対応していません。Chrome/Edgeでお試しください。';
+        return;
+      }
+      const stream = captureFn.call(videoEl);
+      ndiPopupVideo.srcObject = stream;
+      ndiPopupVideo.play().catch(() => {});
+    } catch (e) {
+      console.error('NDI出力ウィンドウの更新に失敗しました', e);
+    }
+  }
+
+  // ---- NDI出力ウィンドウの映像が固まる対策 ----
+  // Chromeなど一部ブラウザには、captureStream()で取得した映像を、元の<video>を
+  // seek(再生位置の変更)した直後に出力が止まったままになってしまう既知の癖がある。
+  // このツールは曲の再生位置合わせのため <video> を頻繁にseekするので、その
+  // 直後に captureStream() を取り直すことで、映像が固まる前に予防的に復旧する。
+  let ndiSeekRefreshTimer = null;
+  videoEl.addEventListener('seeked', () => {
+    if (!ndiPopup || ndiPopup.closed) return;
+    if (ndiSeekRefreshTimer) clearTimeout(ndiSeekRefreshTimer);
+    ndiSeekRefreshTimer = setTimeout(() => { refreshNdiPopupStream(); }, 300);
+  });
+
+  // 上記の予防策をすり抜けて固まってしまった場合のための保険として、定期的に
+  // 「メイン側は再生が進んでいるのに、NDI出力ウィンドウ側の再生位置が全く
+  // 進んでいない」状態を検知し、自動でcaptureStream()を取り直す監視タイマー。
+  let ndiWatchdogTimer = null;
+  let ndiWatchdogLastTime = null;
+
+  function startNdiWatchdog() {
+    stopNdiWatchdog();
+    ndiWatchdogLastTime = null;
+    ndiWatchdogTimer = setInterval(() => {
+      if (!ndiPopup || ndiPopup.closed || !ndiPopupVideo) { stopNdiWatchdog(); return; }
+      // メイン側の映像が再生中でない(停止中・無音による黒画面など)場合は
+      // NDI出力側も止まっていて正常なので、誤検出しないよう判定を見送る。
+      if (videoEl.paused || videoEl.readyState < 2) { ndiWatchdogLastTime = null; return; }
+      if (ndiPopupVideo.paused) {
+        // 自動再生がブロックされている等。再度play()を試みるだけにする。
+        ndiPopupVideo.play().catch(() => {});
+        ndiWatchdogLastTime = null;
+        return;
+      }
+      const cur = ndiPopupVideo.currentTime;
+      if (ndiWatchdogLastTime !== null && Math.abs(cur - ndiWatchdogLastTime) < 0.05) {
+        console.warn('NDI出力ウィンドウの映像が停止しているようです。自動的に再接続します。');
+        refreshNdiPopupStream();
+        ndiWatchdogLastTime = null; // 直後の判定で誤って連続再接続しないようにする
+      } else {
+        ndiWatchdogLastTime = cur;
+      }
+    }, 3000);
+  }
+
+  function stopNdiWatchdog() {
+    if (ndiWatchdogTimer) clearInterval(ndiWatchdogTimer);
+    ndiWatchdogTimer = null;
+  }
+
+  // メインのプレビューが無音により黒画面になった時、NDI出力(Resolume側)にも
+  // 同様に黒画面を反映する。captureStream()は<video>要素が実際に描画している
+  // 最後のフレームをそのまま流し続けるため、一時停止しただけでは黒くならない。
+  // そのためポップアップ側にも同じ黒オーバーレイを重ねて対応する。
+  function setNdiPopupBlackout(flag) {
+    if (!ndiPopup || ndiPopup.closed || !ndiPopupOverlay) return;
+    ndiPopupOverlay.style.display = flag ? 'block' : 'none';
+  }
+
+  document.getElementById('ndiWindowBtn').addEventListener('click', () => {
+    if (ndiPopup && !ndiPopup.closed) {
+      // 既に開いている場合も、映像が固まっている時の手動の復旧手段として
+      // captureStream() を取り直してからフォーカスする。
+      refreshNdiPopupStream();
+      ndiPopup.focus();
+      return;
+    }
+    const w = 1280, h = 720;
+    ndiPopup = window.open('', 'ndiOutputWindow', `width=${w},height=${h},toolbar=no,menubar=no,location=no,status=no,resizable=yes`);
+    if (!ndiPopup) {
+      alert('ポップアップがブロックされました。ブラウザのアドレスバー付近に出るポップアップ許可の通知から、このページのポップアップを許可してください。');
+      return;
+    }
+    ndiPopup.document.title = 'NDI出力ウィンドウ - Anime Seeker';
+    ndiPopup.document.body.style.margin = '0';
+    ndiPopup.document.body.style.background = '#000';
+    ndiPopup.document.body.style.overflow = 'hidden';
+    ndiPopup.document.body.style.position = 'relative';
+    ndiPopupVideo = ndiPopup.document.createElement('video');
+    ndiPopupVideo.autoplay = true;
+    ndiPopupVideo.style.width = '100%';
+    ndiPopupVideo.style.height = '100%';
+    ndiPopupVideo.style.objectFit = 'contain';
+    ndiPopupVideo.muted = videoEl.muted;
+    ndiPopup.document.body.appendChild(ndiPopupVideo);
+
+    ndiPopupOverlay = ndiPopup.document.createElement('div');
+    ndiPopupOverlay.style.position = 'absolute';
+    ndiPopupOverlay.style.top = '0';
+    ndiPopupOverlay.style.left = '0';
+    ndiPopupOverlay.style.right = '0';
+    ndiPopupOverlay.style.bottom = '0';
+    ndiPopupOverlay.style.background = '#000';
+    ndiPopupOverlay.style.display = 'none';
+    ndiPopup.document.body.appendChild(ndiPopupOverlay);
+
+    refreshNdiPopupStream();
+    setNdiPopupBlackout(state.app && state.app.player ? state.app.player.blackedOut : false);
+    startNdiWatchdog();
+  });
+
+  // ---- 初期化 ----
+  async function init() {
+    checkBrowserSupport();
+    state.db = await openDb();
+
+    const savedRoots = await loadRoots(state.db);
+    state.roots = savedRoots.map((r) => ({ key: r.key, handle: r.handle, label: r.label }));
+    renderRootsList();
+
+    // 曲数・ハッシュ数が非常に多いライブラリでは、キャッシュが使えない場合
+    // (初回や、前回の構築が保存キャッシュ更新前に終了した場合など)の読み込みに
+    // 数秒〜数十秒かかることがある。読み込み中であることが分かるよう、先に
+    // 案内を出しておく(通常のキャッシュ使用時は一瞬で終わるため、すぐ次の
+    // 案内に上書きされる)。
+    const noticeCard = document.getElementById('startupNoticeCard');
+    const notice = document.getElementById('startupNotice');
+    noticeCard.style.display = 'block';
+    notice.textContent = 'ライブラリを読み込んでいます。曲数が多い場合は数十秒ほどかかることがあります。しばらくそのままお待ちください…';
+
+    const lib = await loadLibrary(state.db, (songsDone, totalSongs) => {
+      notice.textContent = totalSongs
+        ? `ライブラリを読み込んでいます…（${songsDone} / ${totalSongs} 曲）しばらくそのままお待ちください…`
+        : 'ライブラリを読み込んでいます。曲数が多い場合は数十秒ほどかかることがあります。しばらくそのままお待ちください…';
+    });
+    state.songsById = lib.songsById;
+    state.hashIndex = lib.hashIndex;
+    state.nextSongId = lib.nextId;
+    updateLibSummary();
+
+    if (state.songsById.size > 0) {
+      noticeCard.style.display = 'block';
+      notice.textContent =
+        `保存されているライブラリを読み込みました（登録曲数: ${state.songsById.size}）。` +
+        'フォルダの選択やライブラリの構築をやり直す必要はありません。このまま「▶ 開始」を押せます' +
+        '（フォルダへのアクセス許可の確認ダイアログが出ることがあります）。新しい動画を追加した時だけ' +
+        '右側の「ライブラリ」欄で構築/更新してください。';
+    } else if (state.roots.length > 0) {
+      noticeCard.style.display = 'block';
+      notice.textContent =
+        'フォルダは登録されていますが、まだライブラリが構築されていません。' +
+        '右側の「ライブラリ構築」で「ライブラリを構築 / 更新」を一度実行してください（次回以降は不要です）。';
+    }
+
+    const savedConfig = await loadConfig(state.db);
+    if (savedConfig) Object.assign(state.config, savedConfig);
+    loadConfigIntoForm();
+    refreshMicList().catch(() => {});
+  }
+
+  init().catch((e) => {
+    console.error(e);
+    alert('初期化中にエラーが発生しました: ' + ((e && e.message) || e));
+  });
+})();
+</script>
+
+</body>
+</html>

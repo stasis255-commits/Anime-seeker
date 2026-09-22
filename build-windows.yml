@@ -1,0 +1,52 @@
+name: Build Windows Installer
+
+# electron-app/ フォルダの中身から、実際のWindows環境(GitHub提供のwindows-latest
+# ランナー)でNSISインストーラー(.exe)をビルドする。開発用のLinuxサンドボックスからは
+# npm registryへのネットワークアクセスが無く、Windows向けのクロスビルドも
+# 現実的ではないため、このワークフローが本アプリの正式なビルド手段になる。
+#
+# 実行方法:
+#   1. このリポジトリをGitHubへpushする(mainブランチへのpushで自動実行される)。
+#   2. または GitHub の「Actions」タブ→「Build Windows Installer」→
+#      「Run workflow」ボタンで手動実行することもできる(workflow_dispatch)。
+#   3. ビルドが成功すると、そのワークフロー実行画面の下の方にある
+#      「Artifacts」欄に "AnimeSeeker-windows-installer" が現れるので、
+#      ダウンロードして展開すると中にインストーラー(.exe)が入っている。
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'electron-app/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: electron-app
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.jsをセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 依存パッケージをインストール
+        run: npm install
+
+      - name: Windows向けNSISインストーラーをビルド
+        run: npm run dist
+
+      - name: ビルド成果物(.exe)をArtifactとしてアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnimeSeeker-windows-installer
+          path: |
+            electron-app/dist/*.exe
+          if-no-files-found: error
